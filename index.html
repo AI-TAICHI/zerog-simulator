@@ -89,6 +89,24 @@
   .mounts input:disabled { cursor:not-allowed; opacity:0.3; }
   .badge.s0 { background:#fdf2e3; color:#a86f18; } .badge.s1 { background:#e8f0fb; color:#315e9b; }
   .badge.s2 { background:#e7f5ec; color:#23704a; } .badge.s3 { background:#eef0f3; color:#6f7886; }
+
+  /* ── スマホ・iPadの縦（幅900px以下）：パネルが重なって閉じられなくなるので、1枚のシートにまとめて下から出す（TAICHI 2026-09-18） ── */
+  /* 下から出るシート。上の3割ほどは3Dが見えたままにして、設定の効き方が分かるようにする */
+  #sheet { position:fixed; left:0; right:0; bottom:0; max-height:72vh; z-index:40; overflow-y:auto; overscroll-behavior:contain;
+           background:rgba(233,238,244,.97); padding:0 10px max(20px, env(safe-area-inset-bottom)); border-radius:14px 14px 0 0;
+           box-shadow:0 -6px 24px rgba(8,12,20,.35); -webkit-overflow-scrolling:touch; }
+  #sheet .sheetBar { position:sticky; top:0; z-index:1; display:flex; align-items:center; justify-content:space-between;
+                     gap:10px; margin:0 -10px 10px; padding:10px 12px; background:var(--navy); color:#fff; font-size:13px; font-weight:700;
+                     border-radius:14px 14px 0 0; }
+  #sheet .sheetBar button { border:0; border-radius:7px; padding:8px 14px; background:#fff; color:var(--navy); font:inherit; font-weight:700; cursor:pointer; }
+  body.narrow #sheet .panel { position:static; inset:auto; width:auto; max-width:none; max-height:none;
+                              margin:0 0 10px; box-shadow:0 2px 8px rgba(8,12,20,.18); }
+  body.narrow #sheet #phases { flex-wrap:wrap; min-width:0; }
+  body.narrow #sheet .phase { flex:1 1 30%; }
+  body.narrow #panelShow { top:max(10px, env(safe-area-inset-top)); left:10px; padding:11px 15px; font-size:13px; z-index:41; }
+  body.narrow .tip { max-width:min(320px, calc(100vw - 20px)); }
+  body.narrow .tip.pop { max-width:calc(100vw - 20px); }
+  body.panelsHidden #sheet { display:none; }
 </style>
 </head>
 <body>
@@ -137,7 +155,8 @@
     <div id="deviceArea"></div>
     <p class="hint">機器をクリックしても、その場の吹き出しで操作できる。電池とmicroSDの持ちは目安（推定）。GoPro のボタンの動きは一般的な GoPro の操作からの推定</p>
   </details>
-  <p class="hint">トラックパッド：ピンチで前後、2本指の上下で上下・左右で左右に移動、ドラッグで見回す<br>
+  <p class="hint">指（スマホ・iPad）：1本で見回す、2本のピンチで前後、2本のドラッグで上下・左右に移動<br>
+  トラックパッド：ピンチで前後、2本指の上下で上下・左右で左右に移動、ドラッグで見回す<br>
   キーボード：W A S D・矢印で移動、Q・E で上下、Shift で速く、L で左右のLEDをまとめてオンオフ、H でパネルの表示／非表示<br>
   ゲームパッドとVRのスティックにも対応（左で移動・右で向きを変える）。VRでは右の A ボタンで撮影カメラの視点を順に切り替える（ヘッドセットではまだ試していない）</p>
 </div>
@@ -609,8 +628,34 @@ function setPanels(hidden) {
 }
 $("panelHide").addEventListener("click", () => setPanels(true));
 $("panelShow").addEventListener("click", () => setPanels(false));
-let panelsStartHidden = false;
-try { panelsStartHidden = localStorage.getItem(PANEL_KEY) === "1"; } catch (error) { /* 既定は表示 */ }
+
+// ── スマホ・iPadの縦（幅900px以下）は、パネルを1枚のシートにまとめる（TAICHI 2026-09-18「パネルが開いていると閉じれない」）──
+// 幅の広い画面（パソコン・iPadの横）は今までどおり、画面の四隅に置く
+const narrow = matchMedia("(max-width: 900px)");
+const sheet = Object.assign(document.createElement("div"), { id: "sheet" });
+const sheetBar = Object.assign(document.createElement("div"), { className: "sheetBar" });
+sheetBar.append(Object.assign(document.createElement("span"), { textContent: "操作パネル" }),
+                Object.assign(document.createElement("button"), { textContent: "✕ 閉じる", onclick: () => setPanels(true) }));
+sheet.append(sheetBar);
+const SHEET_PANELS = ["head", "seatpick", "timeline"];   // AIへの依頼（#ask）は全画面なのでそのまま
+function applyLayout() {
+  document.body.classList.toggle("narrow", narrow.matches);
+  if (narrow.matches) {
+    if (!sheet.parentNode) document.body.appendChild(sheet);
+    SHEET_PANELS.forEach((id) => { if ($(id).parentNode !== sheet) sheet.append($(id)); });   // 並びは head → 視点 → 段階
+  } else {
+    SHEET_PANELS.forEach((id) => { if ($(id).parentNode === sheet) document.body.appendChild($(id)); });
+    sheet.remove();
+  }
+}
+narrow.addEventListener("change", applyLayout);
+applyLayout();
+
+let panelsStartHidden = narrow.matches;   // 画面が狭いときは、最初は閉じておく（開くと3Dが見えなくなるため）
+try {
+  const saved = localStorage.getItem(PANEL_KEY);
+  if (saved !== null) panelsStartHidden = saved === "1";
+} catch (error) { /* 覚えられない環境では、画面の幅で決める */ }
 setPanels(panelsStartHidden);
 
 // 視点は dimensions.json の viewpoints（実測の座席位置から計算したもの）
@@ -1302,6 +1347,37 @@ renderer.domElement.addEventListener("wheel", (event) => {
     moveBy(0, limit(event.deltaX * unit * scale), limit(event.deltaY * unit * scale));
   }
 }, { passive: false });
+
+// ── 指の操作（スマホ・iPad。TAICHI 2026-09-18「ピンチイン・ピンチアウトで前後に動けない」）──
+// 1本指＝見回す（OrbitControls）／2本指のピンチ＝前後（広げると前へ）／2本指のドラッグ＝上下・左右（画面をつかんで動かす向き）
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.PAN };   // TWO は OrbitControls が扱わない値＝2本指はこちらで処理する
+renderer.domElement.style.touchAction = "none";                         // ブラウザ側の拡大・スクロールに取られないようにする
+let fingers = null;
+function twoFingers(touches) {
+  const [a, b] = touches;
+  return { gap: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+           x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+}
+renderer.domElement.addEventListener("touchstart", (event) => {
+  if (event.touches.length === 2) { fingers = twoFingers(event.touches); event.preventDefault(); }
+}, { passive: false });
+renderer.domElement.addEventListener("touchmove", (event) => {
+  if (event.touches.length !== 2) return;
+  event.preventDefault();                                  // 2本指はページの拡大に使わせない
+  const now = twoFingers(event.touches);
+  if (!fingers) { fingers = now; return; }
+  const pinch = now.gap - fingers.gap;                     // 指を広げると＋＝前へ
+  const dx = now.x - fingers.x, dy = now.y - fingers.y;
+  const limit = (value) => Math.max(-0.4, Math.min(0.4, value));
+  // 効き方：指を150pxほど広げて約0.9m前へ（速さ1.5のとき）。強すぎると狭い機内では一気に突き抜ける
+  if (Math.abs(pinch) > Math.hypot(dx, dy)) moveBy(limit(pinch * 0.004 * speed), 0, 0);
+  else moveBy(0, limit(-dx * 0.003 * speed), limit(dy * 0.003 * speed));   // 指を右へ動かすと景色が右へ（自分は左へ）、指を下へ動かすと自分は上へ
+  fingers = now;
+}, { passive: false });
+const clearFingers = (event) => { if (event.touches.length < 2) fingers = null; };
+renderer.domElement.addEventListener("touchend", clearFingers);
+renderer.domElement.addEventListener("touchcancel", clearFingers);
+addEventListener("gesturestart", (event) => event.preventDefault());    // iPhone・iPadのSafariのページ拡大を止める
 
 const keys = new Set();
 addEventListener("keydown", (event) => {
