@@ -1,0 +1,411 @@
+{
+ "name": "ASTRAX zero gravity aircraft (MU-300) free area — v1.0 実測版",
+ "files": [
+  {
+   "file": "cabin_shell.obj",
+   "objects": 172
+  },
+  {
+   "file": "seat.obj",
+   "objects": 10
+  },
+  {
+   "file": "bench_seat.obj",
+   "objects": 19
+  },
+  {
+   "file": "pilot_seat.obj",
+   "objects": 6
+  },
+  {
+   "file": "equipment_rack.obj",
+   "objects": 13
+  },
+  {
+   "file": "blackout_curtain.obj",
+   "objects": 1
+  },
+  {
+   "file": "camera_gopro.obj",
+   "objects": 4
+  },
+  {
+   "file": "camera_canon.obj",
+   "objects": 13
+  },
+  {
+   "file": "camera_phone.obj",
+   "objects": 2
+  },
+  {
+   "file": "light_led.obj",
+   "objects": 6
+  },
+  {
+   "file": "experiment_table.obj",
+   "objects": 3
+  }
+ ],
+ "placement": [
+  {
+   "prefab": "seat",
+   "name": "RearSeat_Starboard",
+   "position": [
+    1.746,
+    0.014,
+    -0.395
+   ],
+   "rotation_y": 0
+  },
+  {
+   "prefab": "seat",
+   "name": "RearSeat_Port",
+   "position": [
+    1.746,
+    0.014,
+    0.395
+   ],
+   "rotation_y": 0
+  },
+  {
+   "prefab": "bench_seat",
+   "name": "BenchSeat",
+   "position": [
+    -0.116,
+    0.016,
+    0.05
+   ],
+   "rotation_y": 180
+  },
+  {
+   "prefab": "equipment_rack",
+   "name": "EquipmentRack",
+   "position": [
+    2.426,
+    0.0,
+    0.0
+   ],
+   "rotation_y": 0
+  },
+  {
+   "prefab": "blackout_curtain",
+   "name": "BlackoutCurtain",
+   "position": [
+    2.426,
+    0.0,
+    0.0
+   ],
+   "rotation_y": 0
+  },
+  {
+   "prefab": "pilot_seat",
+   "name": "PilotSeat_Starboard",
+   "position": [
+    -1.867,
+    0.0,
+    -0.36
+   ],
+   "rotation_y": 0
+  },
+  {
+   "prefab": "pilot_seat",
+   "name": "PilotSeat_Port",
+   "position": [
+    -1.867,
+    0.0,
+    0.36
+   ],
+   "rotation_y": 0
+  },
+  {
+   "prefab": "light_led",
+   "name": "LED_Starboard",
+   "position": [
+    0.044,
+    0.51,
+    -0.655
+   ],
+   "rotation_y": -76
+  },
+  {
+   "prefab": "light_led",
+   "name": "LED_Port",
+   "position": [
+    0.161,
+    0.51,
+    0.655
+   ],
+   "rotation_y": 76
+  },
+  {
+   "prefab": "experiment_table",
+   "name": "ExperimentTable",
+   "position": [
+    0.698,
+    0.784,
+    0.0
+   ],
+   "rotation_y": 0,
+   "visible": false
+  }
+ ],
+ "viewpoints": {
+  "rear_port": {
+   "label": "後部座席（左）",
+   "position": [
+    1.676,
+    1.15,
+    0.395
+   ],
+   "target": [
+    -0.116,
+    0.85,
+    0.12
+   ]
+  },
+  "rear_starboard": {
+   "label": "後部座席（右）",
+   "position": [
+    1.676,
+    1.15,
+    -0.395
+   ],
+   "target": [
+    -0.116,
+    0.85,
+    -0.12
+   ]
+  },
+  "bench": {
+   "label": "前方ベンチシート（まん中の席）",
+   "position": [
+    -0.811,
+    1.13,
+    -0.25
+   ],
+   "target": [
+    0.628,
+    0.82,
+    0.95
+   ]
+  },
+  "float": {
+   "label": "フリーエリアの中央（浮いた位置）",
+   "position": [
+    0.698,
+    0.8,
+    0.0
+   ],
+   "target": [
+    2.096,
+    0.9,
+    0.0
+   ]
+  },
+  "window": {
+   "label": "窓のそば（右）",
+   "position": [
+    0.879,
+    0.95,
+    0.05
+   ],
+   "target": [
+    1.129,
+    0.9,
+    -0.7
+   ]
+  },
+  "outside": {
+   "label": "外から全体を見る（左側から）",
+   "position": [
+    -2.4,
+    2.1,
+    3.0
+   ],
+   "target": [
+    1.048,
+    0.6,
+    0.0
+   ]
+  }
+ },
+ "cameras": [
+  {
+   "id": "gopro1",
+   "label": "GoPro 1（左LED上）",
+   "model": "camera_gopro",
+   "mount": "led_left",
+   "position": [
+    0.186,
+    0.922,
+    0.661
+   ],
+   "target": [
+    1.697,
+    0.55,
+    -0.25
+   ],
+   "fov": 70
+  },
+  {
+   "id": "gopro2",
+   "label": "GoPro 2（中央天井）",
+   "model": "camera_gopro",
+   "mount": "top_center",
+   "position": [
+    0.05,
+    1.3,
+    0.0
+   ],
+   "target": [
+    1.697,
+    0.5,
+    0.0
+   ],
+   "fov": 70
+  },
+  {
+   "id": "canon",
+   "label": "Canon 広角（一番後ろの上のバーの中央）",
+   "model": "camera_canon",
+   "product": "Canon iVIS mini（超広角のビデオカメラ）",
+   "notes": [
+    "使用前にバッテリーがフル、メモリーが十分空いていることを確認すること",
+    "無重力飛行空域に到着したら電源を入れて、撮影を開始すること",
+    "無重力飛行中はずっと録画状態にしておき、無重力飛行が全部終わったら停止すること",
+    "バッテリーが残っていればそのまま録画状態にしたままでもよい"
+   ],
+   "position": [
+    2.296,
+    1.217,
+    0.0
+   ],
+   "target": [
+    0.327,
+    0.87,
+    0.0
+   ],
+   "fov": 74
+  },
+  {
+   "id": "phone",
+   "label": "Osmo Pocket／iPhone 11（ベンチの正面の窓に貼る）",
+   "model": "camera_phone",
+   "position": [
+    -1.15,
+    0.852,
+    0.694
+   ],
+   "target": [
+    -0.858,
+    0.553,
+    -0.431
+   ],
+   "fov": 72
+  }
+ ],
+ "camera_mounts": [
+  {
+   "id": "top_center",
+   "short": "中央天井",
+   "label": "中央天井（ネットの枠のいちばん上の中央）",
+   "position": [
+    0.05,
+    1.3,
+    0.0
+   ],
+   "target": [
+    1.697,
+    0.5,
+    0.0
+   ]
+  },
+  {
+   "id": "led_left",
+   "short": "左LED上",
+   "label": "左のLEDの上（上のフレームに留める）",
+   "position": [
+    0.186,
+    0.922,
+    0.661
+   ],
+   "target": [
+    1.697,
+    0.55,
+    -0.25
+   ]
+  },
+  {
+   "id": "led_right",
+   "short": "右LED上",
+   "label": "右のLEDの上（上のフレームに留める）",
+   "position": [
+    0.037,
+    0.922,
+    -0.605
+   ],
+   "target": [
+    1.697,
+    0.55,
+    0.25
+   ]
+  },
+  {
+   "id": "floor_right",
+   "short": "ネット右下床",
+   "label": "ネットの右下の床（枠の角・マットの上）",
+   "position": [
+    0.022,
+    0.154,
+    -0.505
+   ],
+   "target": [
+    1.497,
+    0.95,
+    0.3
+   ]
+  },
+  {
+   "id": "window_left",
+   "short": "左窓",
+   "label": "左の窓（フリースペースのまん中）",
+   "position": [
+    1.109,
+    0.851,
+    0.689
+   ],
+   "target": [
+    1.109,
+    0.542,
+    -0.47
+   ]
+  },
+  {
+   "id": "window_right",
+   "short": "右窓",
+   "label": "右の窓（フリースペースのまん中）",
+   "position": [
+    1.129,
+    0.851,
+    -0.689
+   ],
+   "target": [
+    1.129,
+    0.542,
+    0.47
+   ]
+  }
+ ],
+ "equipment": {
+  "light_led": {
+   "label": "LEDライト",
+   "product": "Tolifo 60W RGB LEDビデオライト GK-S60RGB",
+   "notes": [
+    "LEDライトは無重力飛行エリアに到着して、無重力の準備が整ってからオンにします",
+    "無重力飛行が終わるまでつけっぱなしでも大丈夫ですが、バッテリーが切れた場合は交換してください",
+    "明るさの調整だけでなく、白色・暖色の調整などもできます",
+    "離陸と着陸時は取り外して床に置いておき、シートベルトを外してよくなったら取り付けてください"
+   ]
+  }
+ }
+}

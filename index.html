@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="ja" data-site="public">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASTRAX 無重力飛行機 教育訓練シミュレーター（着席型・試作）</title>
+<style>
+  :root { color-scheme: light; --ink:#162235; --muted:#6f7886; --line:#dce1e8; --navy:#102239; --blue:#315e9b; --amber:#a86f18; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif; color:var(--ink); background:#0e1116; overflow:hidden; }
+  #view { position:fixed; inset:0; }
+  .panel { position:fixed; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 20px rgba(8,12,20,.35); }
+  #head { top:12px; left:12px; padding:12px 16px; max-width:330px; }
+  #head h1 { margin:0 0 4px; font-size:15px; }
+  #head p { margin:0; font-size:11px; line-height:1.6; color:var(--muted); }
+  #timeline { bottom:12px; left:12px; right:12px; padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  #phases { display:flex; gap:6px; flex:1; min-width:280px; }
+  .phase { flex:1; padding:7px 4px; border-radius:6px; border:1px solid var(--line); background:#fff; font-size:11px; text-align:center; cursor:pointer; }
+  .phase.on { background:#edf3fb; border-color:var(--blue); color:var(--blue); font-weight:700; }
+  .phase.zero.on { background:#fdf2e3; border-color:var(--amber); color:var(--amber); }
+  #note { font-size:12px; line-height:1.6; flex-basis:100%; }
+  #note b { color:var(--navy); }
+  button.action { border:0; border-radius:7px; padding:9px 14px; background:var(--navy); color:#fff; font-size:12px; font-weight:700; cursor:pointer; }
+  button.action.ghost { background:#fff; color:#365a86; border:1px solid #cfd7e1; }
+  body.panelsHidden .panel { display:none !important; }          /* 操作パネルを隠す（TAICHI 09-17） */
+  .tip { position:fixed; z-index:30; max-width:300px; padding:10px 12px; border-radius:10px; background:rgba(16,34,57,.96); color:#fff;
+         font-size:11px; line-height:1.6; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.4); }
+  .tip[hidden] { display:none; }
+  .tip b { font-size:12px; }
+  .tipProduct { color:#b9c7da; }
+  .tipHead { margin-top:6px; color:#ffd58a; font-weight:700; }
+  .tip ul { margin:3px 0 0; padding-left:16px; }
+  .tip::after { content:""; position:absolute; left:var(--arrow, 50%); bottom:-7px; margin-left:-7px; border:7px solid transparent; border-bottom:0; border-top-color:rgba(16,34,57,.96); }
+  #panelShow { position:fixed; top:12px; left:12px; z-index:10; display:none; }
+  /* 機器の操作（TAICHI 09-17） */
+  #devicesPanel { margin-top:8px; border-top:1px solid var(--line); padding-top:6px; }
+  #devicesPanel summary { cursor:pointer; font-weight:700; color:var(--navy); }
+  .deviceBox { margin-top:4px; }
+  .deviceTitle { font-weight:700; margin:4px 0 2px; }
+  .deviceStatus { font-size:10px; line-height:1.5; color:var(--muted); margin:2px 0 2px; white-space:pre-line; }
+  .deviceRow { display:flex; flex-wrap:wrap; }
+  .deviceSlider { display:block; margin:6px 0 0; font-size:10px; }
+  .deviceSlider input[type=range] { width:100%; margin:2px 0 0; }   /* 左右の余白（既定2px）があると吹き出しの幅から4pxはみ出し、横スクロールバーが出た */
+  .deviceSlider select { font:inherit; font-size:11px; margin-top:2px; }
+  .mini.rec { background:#fde8e6; border-color:#c0392b; color:#b0271b; }
+  .mini:disabled { opacity:.45; cursor:not-allowed; }
+  .tip.pop { pointer-events:auto; max-width:340px; z-index:31; }
+  .popBody { max-height:calc(100vh - 40px); overflow-y:auto; overflow-x:hidden; }   /* 横は出さない（行末の「）」が3px はみ出して横スクロールバーが出た） */   /* スクロールは中身だけ（吹き出し自体をスクロールにすると、下の矢印が隠れてスクロールバーが出た） */
+  /* 吹き出しの口（矢印）は機器の側に出す：上に置いたら下向き（既定）・下に置いたら上向き・右に置いたら左向き・左に置いたら右向き */
+  .tip.below::after { top:-7px; bottom:auto; border-top:0; border-bottom:7px solid rgba(16,34,57,.96); }
+  .tip.left::after, .tip.right::after { top:var(--arrowY, 50%); bottom:auto; margin-left:0; margin-top:-7px; border:7px solid transparent; }
+  .tip.right::after { left:-7px; border-left:0; border-right-color:rgba(16,34,57,.96); }
+  .tip.left::after { left:auto; right:-7px; border-right:0; border-left-color:rgba(16,34,57,.96); }
+  .pop .deviceStatus, .pop .deviceSlider { color:#c9d5e6; }
+  .pop .mini { background:#233756; color:#fff; border-color:#46638f; }
+  .pop .mini.on { background:#fff6de; color:#855b00; border-color:#d9a21b; }
+  .pop .mini.rec { background:#5c1f1a; color:#ffd6d1; border-color:#e0584a; }
+  .popClose { position:absolute; top:4px; right:6px; border:0; background:transparent; color:#fff; font-size:18px; cursor:pointer; }
+  .tipHint { margin-top:6px; color:#9fb4d0; font-size:10px; }
+  body.panelsHidden #panelShow { display:block; }
+  #seatpick { position:fixed; top:12px; right:12px; padding:10px 12px; font-size:11px; }
+  #seatpick label { display:block; margin-bottom:6px; color:var(--muted); }
+  #seatpick select { font:inherit; font-size:11px; padding:5px 7px; border:1px solid var(--line); border-radius:6px; max-width:100%; }   /* 視点の名前が長くてもパネルの幅に収める（はみ出すと横のスクロールが出た） */
+  #loading { position:fixed; inset:0; display:grid; place-items:center; font-size:13px; color:#cfd6e0; background:#0e1116; }
+  #seatpick { width:260px; max-height:calc(100vh - 140px); overflow-y:auto; }   /* 下の段階のパネルと重ならないよう、はみ出す分はスクロール */
+  #seatpick input[type=range] { width:100%; margin:2px 0 0; }
+  .hint { font-size:10px; line-height:1.55; color:var(--muted); margin:6px 0 0; }
+  #askOpen { margin-top:10px; }
+  #ask { top:12px; left:12px; bottom:120px; width:min(390px, calc(100vw - 24px)); padding:12px 14px; display:flex; flex-direction:column; gap:8px; z-index:5; }
+  #ask[hidden] { display:none; }
+  .askTop { display:flex; justify-content:space-between; align-items:center; font-size:14px; }
+  #askText { width:100%; font:inherit; font-size:12px; line-height:1.6; padding:8px 10px; border:1px solid #cfd7e1; border-radius:7px; resize:vertical; }
+  .askRow { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  #askList { overflow:auto; flex:1; display:flex; flex-direction:column; gap:8px; padding-right:2px; }
+  .req { border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:12px; line-height:1.6; background:#fff; }
+  .req .meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:10px; color:var(--muted); margin-bottom:3px; }
+  .req .text { white-space:pre-wrap; }
+  .req .reply { white-space:pre-wrap; margin-top:6px; padding:6px 8px; border-radius:6px; background:#f1f5fa; color:#233a57; }
+  .req button { margin-left:auto; border:1px solid #cfd7e1; background:#fff; color:#365a86; border-radius:6px; font-size:10px; padding:2px 8px; cursor:pointer; }
+  .badge { padding:1px 7px; border-radius:10px; font-weight:700; }
+  .mini { font:inherit; font-size:10px; padding:4px 8px; margin:6px 4px 0 0; border:1px solid #cfd7e1; background:#fff; color:#365a86; border-radius:6px; cursor:pointer; }
+  .mini[hidden] { display:none; }
+  .mini.on { background:#fff6de; border-color:#d9a21b; color:#855b00; }
+  .mounts { width:100%; border-collapse:collapse; font-size:10px; margin-top:2px; }
+  .mounts th { color:var(--muted); font-weight:600; padding:2px 3px; text-align:center; border-bottom:1px solid var(--line); }
+  .mounts td { padding:1px 3px; text-align:center; border-bottom:1px solid var(--line); }
+  .mounts td.place, .mounts th.place { text-align:left; }
+  .mounts input { margin:2px; cursor:pointer; }
+  .mounts input:disabled { cursor:not-allowed; opacity:0.3; }
+  .badge.s0 { background:#fdf2e3; color:#a86f18; } .badge.s1 { background:#e8f0fb; color:#315e9b; }
+  .badge.s2 { background:#e7f5ec; color:#23704a; } .badge.s3 { background:#eef0f3; color:#6f7886; }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="loading">3Dモデルを読み込んでいます…</div>
+
+<div id="head" class="panel">
+  <h1>無重力飛行機 フリーエリア（着席型・試作）</h1>
+  <p>三菱MU-300のフリーエリアを、公式サイト「実機サイズ表」の<b>実測値</b>で作った試作です（寸法76項目のうち、実測・写真で確かめた値58）。
+  壁・床・座席・窓の見た目には<b>実物の写真から切り出した素材</b>を使っています。
+  <b>加速度・無重力・振動・騒音は再現しません。</b>座席の高さだけ、まだ推定です。</p>
+  <button class="action" id="askOpen">💬 AIへの依頼<span id="askCount"></span></button>
+  <button class="mini" id="panelHide" title="操作パネルをぜんぶ隠す（キーボードの H でも）">パネルを隠す</button>
+</div>
+
+<div id="ask" class="panel" hidden>
+  <div class="askTop"><b>AIへの依頼</b><button class="action ghost" id="askClose">閉じる</button></div>
+  <p class="hint" style="margin:0">直してほしいこと・足してほしい機能を書いてください。<b>Claude Code のチャットと同じ一覧</b>です（チャットで頼んだことも、ここに出ます）。
+  このMacで Claude Code が見張っている間はすぐチャットに届きます。見張っていないときは、次に Claude がこのアプリの作業をする前に読みます。</p>
+  <textarea id="askText" rows="4" placeholder="例：移動をもっと速く／窓の外を雲にしてほしい"></textarea>
+  <div class="askRow"><span id="askMsg" class="hint" style="margin:0"></span><button class="action" id="askSend">送る（⌘Enter）</button></div>
+  <div id="askList"></div>
+</div>
+
+<div id="seatpick" class="panel">
+  <label>視点</label>
+  <select id="seat"></select>
+  <div>
+    <button class="mini" id="camAdd">＋ 今の視点をカメラとして追加</button>
+    <button class="mini" id="camMove" hidden>このカメラを今の位置に置き直す</button>
+    <button class="mini" id="camReset" hidden>元の位置に戻す</button>
+  </div>
+  <label style="margin-top:8px">GoProの設置位置</label>
+  <table id="goproMounts" class="mounts"></table>
+  <p class="hint" style="margin-top:2px">1つの場所に置けるのは1台だけ（もう1台がいる場所は選べない）。視点で GoPro を選ぶと、その場所と画角で見える</p>
+  <label style="margin-top:8px">機尾側の仕切り</label>
+  <select id="aft">
+    <option value="aircraft">実機（計測機器ラック）</option>
+    <option value="simulator">シミュレーター（暗幕）</option>
+  </select>
+  <label style="margin-top:10px">移動の速さ <b id="speedValue"></b></label>
+  <input type="range" id="speed" min="0.25" max="4" step="0.25" value="1.5">
+  <div><button class="mini" id="ledPort" aria-pressed="true">💡 左LED：オン</button><button class="mini" id="ledStarboard" aria-pressed="true">💡 右LED：オン</button></div>
+  <details id="devicesPanel"><summary>🎛 機器の操作（LED・iVIS mini・GoPro）</summary>
+    <div id="deviceTabs"></div>
+    <div id="deviceArea"></div>
+    <p class="hint">機器をクリックしても、その場の吹き出しで操作できる。電池とmicroSDの持ちは目安（推定）。GoPro のボタンの動きは一般的な GoPro の操作からの推定</p>
+  </details>
+  <p class="hint">トラックパッド：ピンチで前後、2本指の上下で上下・左右で左右に移動、ドラッグで見回す<br>
+  キーボード：W A S D・矢印で移動、Q・E で上下、Shift で速く、L で左右のLEDをまとめてオンオフ、H でパネルの表示／非表示<br>
+  ゲームパッドとVRのスティックにも対応（左で移動・右で向きを変える）。VRでは右の A ボタンで撮影カメラの視点を順に切り替える（ヘッドセットではまだ試していない）</p>
+</div>
+
+<button id="panelShow" class="action ghost" title="操作パネルを出す（キーボードの H でも）">☰ パネルを出す</button>
+<div id="cameraTip" class="tip" hidden></div>
+<div id="devicePop" class="tip pop" hidden></div>
+
+<div id="timeline" class="panel">
+  <div id="phases"></div>
+  <button class="action ghost" id="vr">VRで見る</button>
+  <button class="action ghost" id="call2">📣 2分前</button>
+  <button class="action ghost" id="call30">📣 30秒前</button>
+  <span id="callNote" class="hint" style="margin:0"></span>
+  <div id="note"></div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { VRButton } from "three/addons/webxr/VRButton.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
+
+// 飛行の流れ。数字の出典は公式サイトとガイドライン（2026-04-12版）
+const PHASES = [
+  { key:"brief", g:1.0, label:"ブリーフィング", note:"離陸前に、重力の変化、合図のブザーと回復飛行、マットと手すりの使い方、重力表示器の見方を確かめる。" },
+  { key:"climb", g:1.8, label:"上昇（約1.8G）", note:"放物線に入る前の引き起こしで、体が座席に押しつけられる。<b>ここで頭を動かさない</b>。手は体の近くに置く。" },
+  { key:"zero",  g:0.0, label:"無重力（20〜25秒）", zero:true, note:"1回あたり<b>20〜25秒</b>。これを<b>7〜8回</b>、3〜5分の間隔で繰り返す。合計でおよそ2分20秒〜3分20秒しかない。やることを決めておく。" },
+  { key:"out",   g:1.8, label:"回復", note:"再び加重力。<b>合図で床のマットに戻り、体を低くする</b>。浮いたままだと落ちる。" },
+  { key:"debrief", g:1.0, label:"デブリーフィング", note:"着陸後に、デブリーフィング、認定証の授与、アンケート。" },
+];
+
+const view = document.getElementById("view");
+const $ = (id) => document.getElementById(id);
+// 外部に公開する版（make_public.py が <html data-site="public"> にする。TAICHI 09-17「だれでも使える」「外部版は合成の声だけ」）：
+// サーバーに書き込む機能（AIへの依頼・カメラの追加と置き直し）を出さず、掛け声は合成の声だけにする
+const PUBLIC_SITE = document.documentElement.dataset.site === "public";
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.03, 80);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.xr.enabled = true;
+view.appendChild(renderer.domElement);
+document.getElementById("vr").addEventListener("click", () => {
+  const button = VRButton.createButton(renderer);
+  document.body.appendChild(button);
+  button.click();
+});
+
+// 室内の環境光（映り込みが出るので、革やポールが自然に見える）
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.background = new THREE.Color(0x0b0e13);
+
+// 上からの光。影を落とすのは座席・ベンチ・機材だけ（客室の殻は影を落とさない＝窓からの明るさの代わり）
+const sun = new THREE.DirectionalLight(0xfff4e4, 1.15);
+sun.position.set(0.4, 3.2, 1.1);
+sun.target.position.set(1.0, 0, 0);
+scene.add(sun.target);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 0.2; sun.shadow.camera.far = 8;
+sun.shadow.camera.left = -2.6; sun.shadow.camera.right = 2.6;
+sun.shadow.camera.top = 2.6; sun.shadow.camera.bottom = -2.6;
+sun.shadow.bias = -0.0006;
+sun.shadow.radius = 4;
+scene.add(sun);
+const sky = new THREE.HemisphereLight(0xeef3ff, 0x3a3833, 0.35);
+scene.add(sky);
+
+// VRでは、この台（rig）ごと動かして移動する。ブラウザでは台は原点のまま
+const rig = new THREE.Group();
+scene.add(rig);
+rig.add(camera);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enableZoom = false;   // 近づくほど遅くなり中心に届かないので、前後は下の moveBy で一定の速さにする
+
+// ── 実写から切り出したテクスチャ ────────────────────────────
+const textureLoader = new THREE.TextureLoader();
+function texture(file, repeat = [1, 1]) {
+  const map = textureLoader.load("model/textures/" + file);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = map.wrapT = file === "sky.jpg" ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping;
+  map.repeat.set(repeat[0], repeat[1]);
+  map.anisotropy = 8;
+  return map;
+}
+// OBJのUVは1.0＝1メートル。repeat は「1メートルに何枚並べるか」
+const TEX = {
+  wall: texture("wall.jpg", [1.2, 1.2]),
+  cream: texture("cream.jpg", [2, 2]),
+  leather: texture("leather.jpg", [3, 3]),
+  fabric: texture("fabric_blue.jpg", [4, 4]),
+  carpet: texture("carpet.jpg", [2.5, 2.5]),
+  belt: texture("belt.jpg", [6, 6]),
+  sky: texture("sky.jpg", [1, 1]),   // 窓ガラスは1枚の絵をちょうど貼る（uv="fit"）
+};
+
+const M = {  // 環境光の映り込みは控えめに（実機の写真は白飛びしていない）
+  // 殻の面は内向き（check_model.py で確認）。表面だけ描くと、外から見たときに手前の壁が消えて中が見える
+  shell: new THREE.MeshStandardMaterial({ map: TEX.wall, color: 0xdedcd5, roughness: 0.92, metalness: 0.0, side: THREE.FrontSide }),
+  frame: new THREE.MeshStandardMaterial({ map: TEX.wall, color: 0xe4e2dc, roughness: 0.85 }),
+  fabric: new THREE.MeshStandardMaterial({ map: TEX.fabric, color: 0xc9d6e0, roughness: 0.95 }),
+  benchPad: new THREE.MeshStandardMaterial({ map: TEX.cream, color: 0xe9dcc0, roughness: 0.95 }),
+  benchBase: new THREE.MeshStandardMaterial({ color: 0x27384a, roughness: 0.8 }),
+  floorEdge: new THREE.MeshStandardMaterial({ map: TEX.carpet, color: 0x5a4446, roughness: 1.0 }),
+  rack: new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6, metalness: 0.4 }),
+  rackFace: new THREE.MeshStandardMaterial({ color: 0xc9ccd0, roughness: 0.5, metalness: 0.3 }),
+  display: new THREE.MeshStandardMaterial({ color: 0x220a06, emissive: 0xff5a1f, emissiveIntensity: 0.9, roughness: 0.3 }),
+  cream: new THREE.MeshStandardMaterial({ map: TEX.cream, color: 0xefe6d2, roughness: 0.88 }),
+  mat: new THREE.MeshStandardMaterial({ map: TEX.cream, color: 0xe6dcc6, roughness: 0.95 }),
+  carpet: new THREE.MeshStandardMaterial({ map: TEX.carpet, color: 0xd8d2c6, roughness: 1.0 }),
+  leather: new THREE.MeshStandardMaterial({ map: TEX.leather, color: 0x2a2e34, roughness: 0.55, metalness: 0.05 }),
+  belt: new THREE.MeshStandardMaterial({ map: TEX.belt, color: 0x30343a, roughness: 0.85, side: THREE.DoubleSide }),
+  beltBlue: new THREE.MeshStandardMaterial({ map: TEX.belt, color: 0x5b8cc2, roughness: 0.8, side: THREE.DoubleSide }),
+  screen: new THREE.MeshStandardMaterial({ color: 0x0b1522, emissive: 0x1f4a78, emissiveIntensity: 0.9, roughness: 0.3 }),
+  door: new THREE.MeshStandardMaterial({ map: TEX.wall, color: 0xc9c5bb, roughness: 0.8 }),
+  seal: new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.7 }),
+  pilotSeat: new THREE.MeshStandardMaterial({ map: TEX.fabric, color: 0xe8e3da, roughness: 0.85 }),
+  strapBrown: new THREE.MeshStandardMaterial({ color: 0x6e4a2e, roughness: 0.6 }),     // ドアの階段のカバーの取っ手（写真）
+  doorLower: new THREE.MeshStandardMaterial({ color: 0x2f4a4a, roughness: 0.85 }),     // 下のドアの内側（暗い青緑・写真）
+  pullRed: new THREE.MeshStandardMaterial({ color: 0xb3261e, roughness: 0.5 }),
+  curtain: new THREE.MeshStandardMaterial({ map: TEX.belt, color: 0x22262b, roughness: 0.95, side: THREE.DoubleSide }),
+  metal: new THREE.MeshStandardMaterial({ color: 0xb9bec4, roughness: 0.35, metalness: 0.85 }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x1d2024, roughness: 0.5, metalness: 0.3 }),
+  glass: new THREE.MeshStandardMaterial({ map: TEX.sky, emissive: 0xffffff, emissiveMap: TEX.sky, emissiveIntensity: 0.55, roughness: 0.25, metalness: 0.0, side: THREE.DoubleSide }),
+  panel: new THREE.MeshStandardMaterial({ color: 0xe9e5da, roughness: 0.8 }),
+  lamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff3dd, emissiveIntensity: 1.1, roughness: 0.4 }),
+  ledFace: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4e6, emissiveIntensity: 1.6, roughness: 0.9 }),   // 撮影用LEDの顔（オンオフする）。拡散板なのでつやを消す（0.4だと窓の光が映って色が白っぽくなった）
+  lcd: new THREE.MeshStandardMaterial({ color: 0x33434e, emissive: 0x0e1c26, emissiveIntensity: 0.6, roughness: 0.18, metalness: 0.1 }),   // Canon の画面
+  amber: new THREE.MeshStandardMaterial({ color: 0xd8892a, roughness: 0.5, metalness: 0.2 }),
+};
+
+// オブジェクト名の頭で素材を決める（名前は build_parts.py が付ける。Unityでも同じ名前で割り当てる）
+const MATERIAL_RULES = [
+  ["WindowGlass", "glass"], ["WindowReveal", "cream"], ["WindowFrame", "frame"],
+  ["FloorMat", "mat"], ["FloorFore", "carpet"], ["FloorEdge", "floorEdge"], ["FloorBase", "carpet"], ["SeatRail", "dark"],
+  ["SideCushion", "cream"], ["CabinShell", "shell"], ["AftBulkhead", "shell"], ["CockpitShell", "shell"], ["NoseBulkhead", "dark"], ["CockpitFloor", "carpet"],
+  ["Cockpit_Display", "screen"], ["Cockpit_WindshieldPost", "dark"], ["Cockpit_Windshield", "glass"], ["Cockpit_YokeColumn", "metal"], ["Cockpit_", "dark"],
+  ["ExitDoor_GlassOuter", "glass"], ["EmergencyExit_GlassOuter", "glass"], ["EmergencyExit_FrameOuter", "seal"],
+  ["EmergencyExit_Pull", "pullRed"], ["EmergencyExit_Seal", "seal"], ["EmergencyExit", "door"],
+  ["ExitDoor_Handle", "metal"], ["ExitDoor_Frame", "seal"], ["ExitDoor_StairCover", "cream"], ["ExitDoor_StairLeg", "panel"],
+  ["ExitDoor_StairHandle", "strapBrown"], ["ExitDoor_Lower", "doorLower"], ["ExitDoor", "door"],
+  ["RearNet_Hook", "metal"], ["RearNet_Pole", "metal"], ["RearNet", "belt"],
+  ["Pilot_Base", "dark"], ["Pilot_", "pilotSeat"], ["Canon_Face", "metal"], ["Canon_Post", "metal"], ["Canon_ScreenGlass", "lcd"], ["Canon_ClampKnob", "panel"], ["Canon_", "dark"], ["Phone_", "dark"], ["Bench_Belt", "beltBlue"], ["GravityDisplay_Mount", "metal"],
+  ["FrontNet_Hook", "metal"], ["FrontNet", "belt"], ["FrontHoop", "metal"], ["Curtain_Rail", "metal"], ["Curtain", "curtain"],
+  ["CeilingLight", "lamp"], ["ReadingLight", "lamp"], ["CeilingPanel", "panel"], ["ServicePanel", "panel"],
+  ["GravityDisplay_Face", "display"], ["GravityDisplay", "dark"],
+  ["Seat_Leg", "metal"], ["Seat_Frame", "metal"], ["Seat_Buckle", "metal"], ["Seat_Belt", "belt"], ["Seat_", "fabric"],
+  ["Bench_Pan", "benchPad"], ["Bench_Back", "benchPad"], ["Bench_", "benchBase"],
+  ["Rack_Face", "rackFace"], ["Rack_Pole", "metal"], ["Rack_", "rack"],
+  ["Table_Pole", "metal"], ["Table_Top", "panel"],
+  ["GoPro", "dark"], ["LED_Yoke", "dark"], ["LED_Knob", "dark"], ["LED_BackDisplay", "lcd"], ["LED_BackPlate", "rackFace"], ["LED_Face", "ledFace"], ["LED_Panel", "dark"], ["AirVent", "dark"],
+];
+for (const material of Object.values(M)) material.envMapIntensity = 0.45;
+function materialFor(name) {
+  const rule = MATERIAL_RULES.find(([prefix]) => name.startsWith(prefix));
+  return rule ? M[rule[1]] : M.shell;
+}
+// 影を落とさないもの（客室の殻と壁の付属品）
+const NO_SHADOW = /^(EmergencyExit|CockpitShell|NoseBulkhead|CockpitFloor|ExitDoor|Cockpit_Windshield|CabinShell|AftBulkhead|ForeBulkhead|CeilingPanel|CeilingLight|ServicePanel|ReadingLight|AirVent|Window|SideCushion|FloorBase|FloorEdge|SeatRail)/;
+
+const loader = new OBJLoader();
+const load = (file) => new Promise((resolve, reject) => loader.load("model/" + file, resolve, undefined, reject));
+function dress(object) {
+  object.traverse((child) => {
+    if (!child.isMesh) return;
+    child.material = materialFor(child.name);
+    child.castShadow = !NO_SHADOW.test(child.name);
+    child.receiveShadow = true;
+    // OBJLoaderは面ごとに頂点を分けるので、そのままだと筒の壁が縞模様になる。
+    // 40度より浅い折れ目だけなめらかにし、箱の角は立てたままにする
+    child.geometry = toCreasedNormals(child.geometry, Math.PI * 40 / 180);
+  });
+  return object;
+}
+
+const root = new THREE.Group();
+scene.add(root);
+
+const data = await fetch("dimensions.json").then((r) => r.json());
+const shell = dress(await load("cabin_shell.obj"));
+root.add(shell);
+
+const prefabs = {};
+for (const file of data.files.map((f) => f.file.replace(/\.obj$/, "")).filter((f) => f !== "cabin_shell")) {
+  prefabs[file] = dress(await load(file + ".obj"));
+}
+// 配置JSONのとおりに複製して置く（位置はモデルに焼き込まない＝Unityと同じ考え方）
+for (const item of data.placement) {
+  const source = prefabs[item.prefab];
+  if (!source) continue;
+  const copy = source.clone(true);
+  copy.position.set(item.position[0], item.position[1], item.position[2]);
+  copy.rotation.y = (item.rotation_y || 0) * Math.PI / 180;
+  copy.name = item.name;
+  copy.visible = item.visible !== false;
+  root.add(copy);
+}
+
+document.getElementById("loading").remove();
+
+// 窓ごとに、外の明るさの代わりの弱い光を置く（位置はモデルの窓ガラスから読む）
+root.updateMatrixWorld(true);
+root.traverse((child) => {
+  if (!child.isMesh || !child.name.startsWith("WindowGlass")) return;
+  const box = new THREE.Box3().setFromObject(child);
+  const centre = box.getCenter(new THREE.Vector3());
+  const light = new THREE.PointLight(0xe3efff, 0.22, 1.8, 2);
+  light.position.set(centre.x, centre.y, centre.z * 0.9);
+  scene.add(light);
+});
+
+// 撮影用のLED照明（縦長2台）のオンオフ。左右別々（TAICHI 09-17「LEDのオンオフは、左右別々にできるように」）。オンのときは、顔の前から向いている方を照らす（影は落とさない）
+const LED_KEY = "zerog_sim.ledSides";
+const LED_INTENSITY = 9.0;                      // 見た目で決めた値（60Wのビデオライト。オンとオフの差がはっきり分かる強さ）
+const LED_SIDE_NAMES = { Port: "左", Starboard: "右" };   // 進行方向に向かって左＝左舷
+const ledLights = { Port: [], Starboard: [] };
+const ledFaces = {};
+root.traverse((child) => {
+  if (!child.isMesh || child.name !== "LED_Face") return;
+  let group = child.parent;
+  while (group && !/^LED_(Port|Starboard)$/.test(group.name)) group = group.parent;
+  const side = group ? group.name.slice(4) : "Port";
+  child.material = M.ledFace.clone();                      // 左右で別々に光らせる
+  ledFaces[side] = child.material;
+  const panel = child.parent.children.find((sibling) => sibling.name === "LED_Panel");
+  const face = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
+  const back = new THREE.Box3().setFromObject(panel || child).getCenter(new THREE.Vector3());
+  const direction = face.clone().sub(back);
+  if (direction.lengthSq() < 1e-8) direction.set(1, 0, 0);
+  direction.normalize();                                   // 箱（LED_Panel）の中心から顔の中心へ＝光の向き
+  const light = new THREE.SpotLight(0xfff4e6, LED_INTENSITY, 0, Math.PI / 3, 0.75, 2);
+  light.position.copy(face).addScaledVector(direction, 0.03);
+  light.target.position.copy(face).addScaledVector(direction, 2.0);
+  scene.add(light, light.target);
+  ledLights[side].push(light);
+});
+// ── 機器の状態（TAICHI 09-17「LED照明の明るさや色味の調整」「iVIS mini・GoPro HERO10 の操作の練習」）────────────
+// 仕様：Tolifo GK-S60RGB＝色温度3200〜5600K・RGB 360色・明るさ10〜100%・NP-F970×2（Tolifo公式・販売店）。iVIS mini＝microSD・MP4 24Mbps・NB-4L（キヤノン公式）。
+// GoPro HERO10 Black＝5.3K60・4K120・2.7K240・23MP・前後の画面・デジタルレンズ（検索で確認。ボタンの動きは一般的な GoPro の操作からの推定）
+const DEVICE_KEY = "zerog_sim.devices";
+const DEVICE_LIST = [
+  { id: "led_Port", kind: "led", side: "Port", name: "左LED", title: "LEDライト（左）Tolifo GK-S60RGB" },
+  { id: "led_Starboard", kind: "led", side: "Starboard", name: "右LED", title: "LEDライト（右）Tolifo GK-S60RGB" },
+  { id: "canon", kind: "ivis", name: "iVIS mini", title: "Canon iVIS mini（広角）" },
+  { id: "gopro1", kind: "gopro", name: "GoPro 1", title: "GoPro 1（HERO10 Black）" },
+  { id: "gopro2", kind: "gopro", name: "GoPro 2", title: "GoPro 2（HERO10 Black）" },
+];
+// 電池とmicroSDの持ちは目安（推定）：LED＝約95Whで60W→約95分／iVIS mini＝NB-4Lで約60分・16GBに24Mbpsで約90分／GoPro＝1720mAhで録画約70分・64GBに5.3Kで約90分
+const DEVICE_SPEC = { led: { battery: 95 }, ivis: { battery: 60, memory: 90 }, gopro: { battery: 70, memory: 90 } };
+const GOPRO_MODES = { video: "ビデオ", photo: "写真", timelapse: "タイムラプス" };
+const GOPRO_FORMATS = ["5.3K60", "4K120", "2.7K240", "1080p240"];
+const GOPRO_LENSES = { "SuperView": 1.12, "広角": 1.0, "リニア": 0.86, "リニア＋水平維持": 0.86 };   // 画角の目安（広角を1）
+const deviceState = {};
+const deviceScreens = {};
+{
+  let saved = {}, oldLed = {};
+  try { saved = JSON.parse(localStorage.getItem(DEVICE_KEY) || "{}"); } catch (error) { /* 既定の状態 */ }
+  try { oldLed = JSON.parse(localStorage.getItem(LED_KEY) || "{}"); } catch (error) { /* 前のオンオフの記録なし */ }
+  for (const device of DEVICE_LIST) {
+    const base = device.kind === "led" ? { power: oldLed[device.side] !== false, mode: "cct", brightness: 100, kelvin: 5600, hue: 200, battery: 100 }
+      : device.kind === "ivis" ? { power: false, battery: 100, memory: DEVICE_SPEC.ivis.memory }
+      : { power: false, mode: "video", format: "5.3K60", lens: "広角", photos: 0, battery: 100, memory: DEVICE_SPEC.gopro.memory };
+    deviceState[device.id] = Object.assign(base, saved[device.id] || {}, { recording: false, recordStart: 0, flash: 0, message: "" });
+  }
+}
+function ledState(side) { return deviceState["led_" + side]; }
+function kelvinColor(kelvin) {                             // 色温度 → 色（黒体の色の近似。3200K＝暖色、5600K＝白色）
+  const t = kelvin / 100;
+  const r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592);
+  const g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * Math.pow(t - 60, -0.0755148492);
+  const b = t >= 66 ? 255 : 138.5177312231 * Math.log(t - 10) - 305.0447927307;
+  const clamp = (value) => Math.max(0, Math.min(255, value)) / 255;
+  return new THREE.Color().setRGB(clamp(r), clamp(g), clamp(b), THREE.SRGBColorSpace);
+}
+function applyLed(side) {                                  // LEDの光と顔の色・明るさ、ボタンの表示
+  const state = ledState(side);
+  const on = state.power && state.battery > 0;
+  const color = state.mode === "rgb" ? new THREE.Color().setHSL(state.hue / 360, 1, 0.5, THREE.SRGBColorSpace) : kelvinColor(state.kelvin);
+  for (const light of ledLights[side]) {
+    light.color.copy(color);
+    light.intensity = on ? LED_INTENSITY * state.brightness / 100 : 0;   // 数を変えないので、切り替えで止まらない
+  }
+  if (ledFaces[side]) {
+    ledFaces[side].emissive.copy(color);
+    ledFaces[side].emissiveIntensity = on ? 0.3 + 0.7 * state.brightness / 100 : 0;
+    ledFaces[side].color.setHex(on ? 0x000000 : 0x5d6268);   // 点いているときは光の色だけ（白を足すと、暖色や青を選んでも白く見えた）。消したときは暗い灰色（明るい灰色だと点いているように見えた）
+  }
+  const button = $("led" + side);
+  button.textContent = "💡 " + LED_SIDE_NAMES[side] + "LED：" + (on ? "オン" : "オフ");
+  button.title = on ? "押すと消す" : "押すとつける";
+  button.classList.toggle("on", on);
+  button.setAttribute("aria-pressed", on ? "true" : "false");
+}
+function saveDevices() {
+  const keep = {};
+  for (const [id, state] of Object.entries(deviceState)) keep[id] = Object.assign({}, state, { recording: false, recordStart: 0, flash: 0, message: "" });
+  try { localStorage.setItem(DEVICE_KEY, JSON.stringify(keep)); } catch (error) { /* 次回は既定の状態 */ }
+}
+function setDevice(id, patch) {
+  Object.assign(deviceState[id], patch);
+  const device = DEVICE_LIST.find((item) => item.id === id);
+  if (device && device.kind === "led") applyLed(device.side);
+  saveDevices();
+  refreshDeviceViews(false);
+}
+function setLedSide(side, on) { setDevice("led_" + side, { power: on, message: "" }); }
+function setLed(on) { for (const side of ["Port", "Starboard"]) setLedSide(side, on); }   // 左右まとめて（L キー）
+function deviceAction(id, action) {                        // 電源・録画（シャッター）・電池の交換・microSD を空にする
+  const state = deviceState[id];
+  const device = DEVICE_LIST.find((item) => item.id === id);
+  if (!state || !device) return;
+  const now = performance.now();
+  if (action === "power") {
+    if (state.power) setDevice(id, { power: false, recording: false, message: "" });
+    else if (state.battery > 0) setDevice(id, { power: true, message: "" });
+    else setDevice(id, { message: "バッテリーが空です。交換してください" });
+  } else if (action === "record") {
+    if (!state.power) return;
+    if (device.kind === "gopro" && state.mode === "photo") setDevice(id, { photos: state.photos + 1, flash: now });
+    else if (state.recording) setDevice(id, { recording: false });
+    else if (state.memory > 0) setDevice(id, { recording: true, recordStart: now, message: "" });
+    else setDevice(id, { message: "microSD がいっぱいです" });
+  } else if (action === "battery") {
+    setDevice(id, { battery: 100, message: "" });
+  } else if (action === "memory" && !state.recording) {
+    setDevice(id, { memory: DEVICE_SPEC[device.kind].memory, photos: 0, message: "" });
+  }
+}
+function cameraFov(item) {                                 // GoPro はデジタルレンズの設定で画角が変わる（目安）
+  const state = deviceState[item.id];
+  return state && state.lens ? item.fov * (GOPRO_LENSES[state.lens] || 1) : item.fov;
+}
+function formatTime(seconds) {
+  const whole = Math.max(0, Math.floor(seconds));
+  return String(Math.floor(whole / 60)).padStart(2, "0") + ":" + String(whole % 60).padStart(2, "0");
+}
+function formatMinutes(minutes) {
+  const whole = Math.max(0, Math.floor(minutes));
+  return Math.floor(whole / 60) + "時間" + String(whole % 60).padStart(2, "0") + "分";
+}
+// 液晶：そのカメラの向きの映像（電源オンのとき）と、状態の表示（電池・残り・録画中の赤い点と時間）。位置は模型の中（原点から m）
+const SCREEN_SPECS = {
+  camera_canon: [{ key: "lcd", live: true, center: [0, 0.044, -0.0381], size: [0.060, 0.046], back: false }],
+  camera_gopro: [{ key: "rear", live: true, center: [0.0325, 0.0225, -0.0007], size: [0.050, 0.036], back: true },
+                 { key: "front", live: false, center: [0.017, 0.0225, 0.0287], size: [0.024, 0.024], back: false }],
+};
+function attachDeviceScreens(model, id) {
+  const item = cameraList.find((camera) => camera.id === id);
+  if (!deviceState[id] || !item) return;
+  const holder = deviceScreens[id] = deviceScreens[id] || { screens: {}, lamps: [] };
+  holder.model = model;
+  holder.lamps = [];
+  for (const spec of SCREEN_SPECS[item.model] || []) {
+    let screen = holder.screens[spec.key];
+    if (!screen) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = Math.round(256 * spec.size[1] / spec.size[0]);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const target = spec.live ? new THREE.WebGLRenderTarget(256, canvas.height) : null;
+      if (target) target.texture.colorSpace = THREE.SRGBColorSpace;
+      screen = holder.screens[spec.key] = { spec, canvas, texture, target, aspect: spec.size[0] / spec.size[1] };
+    }
+    const geometry = new THREE.PlaneGeometry(spec.size[0], spec.size[1]);
+    const facing = spec.back ? -1 : 1;
+    const view = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial(screen.target ? { map: screen.target.texture, toneMapped: false } : { color: 0x05070a, toneMapped: false }));
+    const overlay = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: screen.texture, transparent: true, toneMapped: false, depthWrite: false }));
+    view.position.set(spec.center[0], spec.center[1], spec.center[2]);
+    overlay.position.set(spec.center[0], spec.center[1], spec.center[2] + facing * 0.0004);
+    view.rotation.y = overlay.rotation.y = spec.back ? Math.PI : 0;
+    view.name = "Screen_" + spec.key;
+    overlay.name = "ScreenOverlay_" + spec.key;
+    model.add(view, overlay);
+    screen.view = view;
+  }
+  if (item.model === "camera_gopro") {                       // 録画中に赤く点滅するランプ（上と前）
+    for (const [x0, y0, z0, x1, y1, z1] of [[0.011, 0.0452, 0.009, 0.019, 0.0468, 0.017], [0.054, 0.035, 0.0283, 0.061, 0.041, 0.0295]]) {
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), new THREE.MeshBasicMaterial({ color: 0x3a0d0b }));
+      lamp.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+      lamp.name = "RecordLamp";
+      model.add(lamp);
+      holder.lamps.push(lamp);
+    }
+  }
+  drawDeviceScreen(id, performance.now());
+}
+function drawDeviceScreen(id, now) {
+  const holder = deviceScreens[id];
+  const state = deviceState[id];
+  const device = DEVICE_LIST.find((item) => item.id === id);
+  if (!holder || !state || !device) return;
+  const blink = Math.floor(now / 500) % 2 === 0;
+  const elapsed = state.recording ? formatTime((now - state.recordStart) / 1000) : "";
+  for (const screen of Object.values(holder.screens)) {
+    const context = screen.canvas.getContext("2d");
+    const width = screen.canvas.width, height = screen.canvas.height;
+    context.clearRect(0, 0, width, height);
+    if (screen.view) screen.view.visible = state.power;
+    if (!state.power) { screen.texture.needsUpdate = true; continue; }   // 電源オフ：画面は消える
+    if (!screen.spec.live) { context.fillStyle = "#07090c"; context.fillRect(0, 0, width, height); }
+    context.textBaseline = "top";
+    const text = (value, x, y, size, color, align) => {
+      context.font = "bold " + size + "px sans-serif";
+      context.textAlign = align || "left";
+      context.fillStyle = "rgba(0,0,0,.6)";
+      context.fillText(value, x + 1, y + 1);
+      context.fillStyle = color || "#fff";
+      context.fillText(value, x, y);
+    };
+    const battery = (x, y, percent) => {
+      context.strokeStyle = "#fff"; context.lineWidth = 2; context.strokeRect(x, y, 26, 12);
+      context.fillStyle = "#fff"; context.fillRect(x + 26, y + 3, 3, 6);
+      context.fillStyle = percent < 20 ? "#ff5146" : "#fff"; context.fillRect(x + 2, y + 2, 22 * percent / 100, 8);
+      text(Math.round(percent) + "%", x + 33, y - 2, 14);
+    };
+    const redDot = (x, y, radius) => { if (!blink) return; context.fillStyle = "#ff2d20"; context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fill(); };
+    if (device.kind === "ivis") {
+      battery(8, 8, state.battery);
+      text("残り " + formatMinutes(state.memory), width - 8, 6, 13, "#fff", "right");
+      if (state.recording) { redDot(18, height - 18, 8); text("REC " + elapsed, 32, height - 27, 17, "#ff5146"); }   // 録画中：赤い点と時間
+      else text("STBY", 8, height - 26, 17, "#7dff9a");
+    } else if (screen.spec.key === "rear") {
+      text(GOPRO_MODES[state.mode], 8, 6, 13);
+      battery(width - 70, 8, state.battery);
+      text(state.mode === "photo" ? "23MP" : state.format + "・" + state.lens, width / 2, height - 44, 13, "#fff", "center");
+      if (state.recording) { redDot(width / 2 - 38, 16, 7); text(elapsed, width / 2 + 6, 6, 17, "#ff5146", "center"); }
+      text(state.mode === "photo" ? "写真 " + state.photos + "枚" : "残り " + formatMinutes(state.memory), width / 2, height - 24, 13, "#fff", "center");
+      if (now - state.flash < 160) { context.fillStyle = "rgba(255,255,255,.85)"; context.fillRect(0, 0, width, height); }   // 写真を撮った瞬間
+    } else {                                                 // GoPro の前の画面（状態だけ）
+      text(GOPRO_MODES[state.mode], width / 2, 24, 34, "#fff", "center");
+      text(state.mode === "photo" ? "23MP" : state.format, width / 2, 80, 34, "#9fd0ff", "center");
+      if (state.recording) text(elapsed, width / 2, 150, 44, blink ? "#ff5146" : "#ff9a92", "center");
+      else text(Math.round(state.battery) + "%", width / 2, 150, 36, "#fff", "center");
+    }
+    screen.texture.needsUpdate = true;
+  }
+  for (const lamp of holder.lamps) lamp.material.color.setHex(state.recording && blink ? 0xff2d20 : 0x3a0d0b);
+}
+for (const side of ["Port", "Starboard"]) {
+  $("led" + side).addEventListener("click", () => setLedSide(side, !(ledState(side).power && ledState(side).battery > 0)));
+  applyLed(side);
+}
+
+// 操作パネルの表示／非表示（TAICHI 09-17「常に表示されていると邪魔」）。「パネルを隠す」「☰ パネルを出す」か H キー。このブラウザに覚えさせる
+const PANEL_KEY = "zerog_sim.panelsHidden";
+function setPanels(hidden) {
+  document.body.classList.toggle("panelsHidden", hidden);
+  try { localStorage.setItem(PANEL_KEY, hidden ? "1" : "0"); } catch (error) { /* 次回は表示 */ }
+}
+$("panelHide").addEventListener("click", () => setPanels(true));
+$("panelShow").addEventListener("click", () => setPanels(false));
+let panelsStartHidden = false;
+try { panelsStartHidden = localStorage.getItem(PANEL_KEY) === "1"; } catch (error) { /* 既定は表示 */ }
+setPanels(panelsStartHidden);
+
+// 視点は dimensions.json の viewpoints（実測の座席位置から計算したもの）
+// 視点：座る・浮く位置（dimensions.json の viewpoints）と、撮影カメラ（cameras。アプリで追加・置き直しができる）
+const VIEWS = data.viewpoints;
+const BUILT_IN_CAMERAS = data.cameras || [];
+let userCameras = [];
+let cameraList = [];
+const seatSelect = $("seat");
+const cameraModels = new THREE.Group();
+root.add(cameraModels);
+
+// GoProの設置位置（TAICHI 09-17）：表（設置位置 × GoPro 1・2）のラジオボタンで選ぶ。1つの場所に置けるのは1台だけ。このブラウザに覚えさせる
+const MOUNTS = data.camera_mounts || [];
+const MOUNT_KEY = "zerog_sim.goproMounts";
+const GOPROS = BUILT_IN_CAMERAS.filter((camera) => camera.mount);          // dimensions.json で最初の場所（mount）を持つカメラ
+const mountOf = {};
+for (const camera of GOPROS) mountOf[camera.id] = camera.mount;
+try {
+  const saved = JSON.parse(localStorage.getItem(MOUNT_KEY) || "{}");
+  const known = GOPROS.every((camera) => MOUNTS.some((mount) => mount.id === saved[camera.id]));
+  const apart = new Set(GOPROS.map((camera) => saved[camera.id])).size === GOPROS.length;
+  if (known && apart) for (const camera of GOPROS) mountOf[camera.id] = saved[camera.id];
+} catch (error) { /* 最初の場所のまま */ }
+const cameraName = (camera) => camera.label.replace(/（.*）$/, "");   // 「GoPro 1（左LED上）」→「GoPro 1」
+function mountPlacement(camera) {
+  const mount = MOUNTS.find((item) => item.id === mountOf[camera.id]);
+  return mount ? { position: mount.position, target: mount.target, label: cameraName(camera) + "（" + mount.short + "）", mounted: true } : {};
+}
+
+function mergeCameras() {
+  const overrides = {};
+  for (const saved of userCameras) if (saved.base) overrides[saved.base] = saved;
+  const list = BUILT_IN_CAMERAS.map((camera) => mountOf[camera.id]
+    ? Object.assign({}, camera, mountPlacement(camera))                       // 表で選んだ設置位置（GoPro）
+    : overrides[camera.id]
+    ? Object.assign({}, camera, { position: overrides[camera.id].position, target: overrides[camera.id].target,
+                                  fov: overrides[camera.id].fov, overrideId: overrides[camera.id].id, moved: true })
+    : Object.assign({}, camera));
+  for (const saved of userCameras) {
+    if (!saved.base) list.push({ id: saved.id, label: saved.label, model: "camera_gopro", position: saved.position,
+                                 target: saved.target, fov: saved.fov, userAdded: true });
+  }
+  return list;
+}
+function rebuildViewOptions(selected) {
+  const seats = document.createElement("optgroup");
+  seats.label = "座る・浮く・外から";
+  for (const [key, view] of Object.entries(VIEWS)) seats.append(new Option(view.label, key));
+  const cams = document.createElement("optgroup");
+  cams.label = "撮影カメラ";
+  for (const item of cameraList) {
+    cams.append(new Option(item.label + (item.moved ? "（置き直し）" : "") + (item.userAdded ? "（追加）" : ""), "cam:" + item.id));
+  }
+  seatSelect.replaceChildren(seats, cams);
+  if (selected && [...seatSelect.options].some((option) => option.value === selected)) seatSelect.value = selected;
+}
+function rebuildCameraModels() {
+  cameraModels.clear();
+  for (const item of cameraList) {
+    const source = prefabs[item.model] || prefabs.camera_gopro;
+    if (!source) continue;
+    const model = source.clone(true);
+    model.position.set(...item.position);
+    model.lookAt(new THREE.Vector3(...item.target));     // レンズ（+Z）を写す先へ向ける
+    model.name = "CameraModel_" + item.id;
+    cameraModels.add(model);
+    attachDeviceScreens(model, item.id);                  // iVIS mini・GoPro の液晶
+  }
+}
+async function loadUserCameras(selected) {
+  if (!PUBLIC_SITE) {                                      // 公開版はサーバーが無いので、組み込みのカメラだけ
+    try {
+      const response = await fetch("/api/cameras", { cache: "no-store" });
+      if (response.ok) userCameras = (await response.json()).cameras;
+    } catch (error) { /* サーバーが無いときは、組み込みのカメラだけ */ }
+  }
+  cameraList = mergeCameras();
+  rebuildViewOptions(selected);
+  rebuildCameraModels();
+}
+function selectedCamera() {
+  const key = seatSelect.value;
+  return key.startsWith("cam:") ? cameraList.find((item) => "cam:" + item.id === key) : null;
+}
+function updateCameraButtons() {
+  if (PUBLIC_SITE) { $("camAdd").hidden = $("camMove").hidden = $("camReset").hidden = true; return; }   // 公開版はカメラを足さない・置き直さない
+  const item = selectedCamera();
+  $("camMove").hidden = !item || !!item.mounted;           // GoPro は表の設置位置で付け替える
+  $("camReset").hidden = !(item && (item.moved || item.userAdded));
+  $("camReset").textContent = item && item.userAdded ? "このカメラを消す" : "元の位置に戻す";
+}
+
+// 外から見るときは（カメラは左舷側）、手前＝左舷の壁に付いた部品を隠して断面図にする
+const NEAR_SIDE = /_Port|^CeilingPanel|^CeilingLight/;
+function applyView(name) {
+  const isCamera = name.startsWith("cam:");
+  const v = isCamera ? cameraList.find((item) => "cam:" + item.id === name) : VIEWS[name];
+  if (!v) return;
+  if (seatSelect.value !== name) seatSelect.value = name;   // 画面の選択と合わせる
+  shell.traverse((child) => { if (child.isMesh && NEAR_SIDE.test(child.name)) child.visible = name !== "outside"; });
+  cameraModels.children.forEach((model) => { model.visible = !(isCamera && model.name === "CameraModel_" + v.id); });
+  camera.fov = isCamera ? cameraFov(v) : 60;             // 撮影カメラはその画角で見る（GoPro はデジタルレンズの設定で変わる）
+  camera.updateProjectionMatrix();
+  camera.position.set(...v.position);
+  controls.target.set(...v.target);
+  controls.update();
+  if (renderer.xr.isPresenting) moveRigTo(v);               // VRの中なら、頭をその視点へ運ぶ
+  updateCameraButtons();
+}
+function moveRigTo(view) {                                 // 左右の向きを写す先に合わせてから、頭の位置をその視点へ（上下の向きは頭のまま）
+  const xrCamera = renderer.xr.getCamera();
+  rig.updateMatrixWorld(true);
+  xrCamera.updateMatrixWorld(true);
+  const head = new THREE.Vector3().setFromMatrixPosition(xrCamera.matrixWorld);
+  const looking = xrCamera.getWorldDirection(new THREE.Vector3());
+  const wanted = new THREE.Vector3(...view.target).sub(new THREE.Vector3(...view.position));
+  const angle = Math.atan2(wanted.x, wanted.z) - Math.atan2(looking.x, looking.z);
+  rig.position.sub(head).applyAxisAngle(UP, angle).add(head);
+  rig.rotation.y += angle;
+  rig.position.add(new THREE.Vector3(...view.position).sub(head));
+}
+seatSelect.addEventListener("change", (event) => applyView(event.target.value));
+await loadUserCameras(Object.keys(VIEWS)[0]);
+applyView(Object.keys(VIEWS)[0]);
+
+function renderMounts() {
+  const head = document.createElement("tr");
+  head.append(Object.assign(document.createElement("th"), { textContent: "設置位置", className: "place" }));
+  for (const camera of GOPROS) head.append(Object.assign(document.createElement("th"), { textContent: cameraName(camera) }));
+  const rows = MOUNTS.map((mount) => {
+    const row = document.createElement("tr");
+    row.append(Object.assign(document.createElement("td"), { textContent: mount.short, title: mount.label, className: "place" }));
+    for (const camera of GOPROS) {
+      const radio = Object.assign(document.createElement("input"), { type: "radio", name: "mount_" + camera.id, value: mount.id });
+      radio.checked = mountOf[camera.id] === mount.id;
+      radio.disabled = GOPROS.some((other) => other.id !== camera.id && mountOf[other.id] === mount.id);   // もう1台がいる場所は選べない
+      radio.title = cameraName(camera) + " を " + mount.label + " に付ける";
+      radio.addEventListener("change", () => setMount(camera.id, mount.id));
+      const cell = document.createElement("td");
+      cell.append(radio);
+      row.append(cell);
+    }
+    return row;
+  });
+  $("goproMounts").replaceChildren(head, ...rows);
+}
+function setMount(cameraId, mountId) {
+  if (GOPROS.some((other) => other.id !== cameraId && mountOf[other.id] === mountId)) { renderMounts(); return; }   // 同じ場所に2台は置けない
+  mountOf[cameraId] = mountId;
+  try { localStorage.setItem(MOUNT_KEY, JSON.stringify(mountOf)); } catch (error) { /* 次回は最初の場所 */ }
+  const current = seatSelect.value;
+  cameraList = mergeCameras();
+  rebuildViewOptions(current);
+  rebuildCameraModels();
+  if (current.startsWith("cam:")) applyView(current);      // GoPro の視点で見ていたら、新しい場所の画角に変わる
+  else updateCameraButtons();
+  renderMounts();
+}
+// 撮影カメラの吹き出し（TAICHI 09-17「ポインターを当てると、吹き出しが出て、無重力飛行で使用する際の注意事項を見られる」）。注意事項は cameras の notes
+const cameraTip = $("cameraTip");
+const pointerRay = new THREE.Raycaster();
+const pointerNdc = new THREE.Vector2();
+function shownInScene(object) {                            // 親まで見えているか（その視点のカメラ自身は隠している）
+  for (let node = object; node; node = node.parent) if (!node.visible) return false;
+  return true;
+}
+// LEDライトの吹き出し（TAICHI 09-17「これもまた、吹き出しが出せるように」）：置いた LED と、客室のヨーク・クランプ。中身は dimensions.json の equipment
+const EQUIPMENT = data.equipment || {};
+const ledTipTargets = [];
+root.traverse((child) => { if (/^LED_(Port|Starboard)$/.test(child.name) || (child.isMesh && child.name.startsWith("LED_Yoke"))) ledTipTargets.push(child); });
+function cameraUnder(ndcX, ndcY) {                         // 画面の位置（-1〜1）にある撮影カメラ・LEDライト（吹き出しの中身を返す）
+  pointerNdc.set(ndcX, ndcY);
+  pointerRay.setFromCamera(pointerNdc, camera);
+  const hit = pointerRay.intersectObjects([...cameraModels.children, ...ledTipTargets], true).find((item) => shownInScene(item.object));
+  for (let node = hit ? hit.object : null; node; node = node.parent) {
+    const name = node.name || "";
+    if (name.startsWith("CameraModel_")) {
+      const found = cameraList.find((item) => "CameraModel_" + item.id === name);
+      return found ? Object.assign({}, found, { deviceId: deviceState[found.id] ? found.id : null }) : null;
+    }
+    const led = name.match(/^LED_(?:[A-Za-z]+_)?(Port|Starboard)$/);   // LED_Port／LED_YokeTop_Port など
+    if (led && EQUIPMENT.light_led) return Object.assign({}, EQUIPMENT.light_led, { label: EQUIPMENT.light_led.label + "（" + (led[1] === "Port" ? "左" : "右") + "）", deviceId: "led_" + led[1] });
+  }
+  return null;
+}
+// 吹き出しは機器にかぶらない所に出す（TAICHI 09-17「吹き出しの位置が機器とかぶってしまうとわかりづらい」）。
+// 機器の部品の箱の角を画面に写して、機器が画面で占める四角を求め、その上・下・右・左の順に、画面に収まる所へ置く
+const tipCorner = new THREE.Vector3();
+function deviceParts(item) {                               // 吹き出しの機器の3Dの部品（撮影カメラの模型／LEDとそのヨーク・クランプ）
+  if (!item) return [];
+  if (item.deviceId && item.deviceId.startsWith("led_")) {
+    const side = item.deviceId.slice(4);
+    return ledTipTargets.filter((node) => node.name === "LED_" + side || node.name.endsWith("_" + side));
+  }
+  const model = cameraModels.getObjectByName("CameraModel_" + item.id);
+  return model ? [model] : [];
+}
+function deviceScreenRect(item) {                          // 機器が画面で占める四角（px）。カメラの後ろにかかるときは null
+  const canvasRect = renderer.domElement.getBoundingClientRect();
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity, behind = false;
+  camera.updateWorldMatrix(true, false);
+  for (const part of deviceParts(item)) {
+    part.traverse((mesh) => {
+      if (!mesh.isMesh || !shownInScene(mesh)) return;
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const box = mesh.geometry.boundingBox;
+      for (let corner = 0; corner < 8; corner++) {
+        tipCorner.set(corner & 1 ? box.max.x : box.min.x, corner & 2 ? box.max.y : box.min.y, corner & 4 ? box.max.z : box.min.z)
+          .applyMatrix4(mesh.matrixWorld).project(camera);
+        if (tipCorner.z > 1) { behind = true; continue; }
+        const x = canvasRect.left + (tipCorner.x + 1) / 2 * canvasRect.width, y = canvasRect.top + (1 - tipCorner.y) / 2 * canvasRect.height;
+        left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y);
+      }
+    });
+  }
+  return behind || left > right ? null : { left, top, right, bottom };
+}
+function placeTip(tip, rect, clientX, clientY, body) {     // 機器の四角にかぶらない所へ置き、口を機器の中心へ向ける（body＝高さを縮めてよい中身）
+  const box = rect || { left: clientX - 20, top: clientY - 20, right: clientX + 20, bottom: clientY + 20 };   // 求められないときはポインターのまわり
+  const gap = 14, margin = 8;
+  if (body) body.style.maxHeight = "";
+  let width = tip.offsetWidth, height = tip.offsetHeight;
+  const centerX = (box.left + box.right) / 2, centerY = (box.top + box.bottom) / 2;
+  const clampX = (x) => Math.min(Math.max(margin, x), innerWidth - width - margin);
+  const clampY = (y) => Math.min(Math.max(margin, y), innerHeight - height - margin);
+  const candidates = () => [
+    { side: "above", left: clampX(centerX - width / 2), top: box.top - gap - height },
+    { side: "below", left: clampX(centerX - width / 2), top: box.bottom + gap },
+    { side: "right", left: box.right + gap, top: clampY(centerY - height / 2) },
+    { side: "left", left: box.left - gap - width, top: clampY(centerY - height / 2) },
+  ];
+  const fits = (choice) => choice.left >= margin && choice.top >= margin && choice.left + width <= innerWidth - margin && choice.top + height <= innerHeight - margin;
+  let choices = candidates();
+  let chosen = choices.find(fits);
+  if (!chosen && body) {                                   // 画面が小さくて入らないときは、中身をスクロールにして高さを縮め、上か下の広いほう（入らなければ左右）へ
+    const chrome = height - body.offsetHeight;
+    const vertical = Math.max(box.top - gap - margin, innerHeight - margin - box.bottom - gap);
+    const horizontal = Math.max(box.left - gap - margin, innerWidth - margin - box.right - gap);
+    const limit = vertical - chrome >= 90 ? vertical : horizontal >= width ? innerHeight - 2 * margin : null;
+    if (limit !== null) {
+      body.style.maxHeight = Math.max(60, Math.floor(limit - chrome)) + "px";
+      width = tip.offsetWidth; height = tip.offsetHeight;
+      choices = candidates();
+      chosen = choices.find(fits);
+    }
+  }
+  if (!chosen) {                                           // それでも入らない（機器が画面いっぱい）ときは、画面に収めて、かぶりがいちばん小さい所
+    const overlap = (choice) => Math.max(0, Math.min(choice.left + width, box.right) - Math.max(choice.left, box.left))
+      * Math.max(0, Math.min(choice.top + height, box.bottom) - Math.max(choice.top, box.top));
+    chosen = choices.map((choice) => Object.assign({}, choice, { left: clampX(choice.left), top: clampY(choice.top) }))
+      .sort((a, b) => overlap(a) - overlap(b))[0];
+  }
+  tip.classList.remove("below", "left", "right");
+  if (chosen.side !== "above") tip.classList.add(chosen.side);
+  tip.style.left = chosen.left + "px";
+  tip.style.top = chosen.top + "px";
+  tip.style.setProperty("--arrow", Math.min(Math.max(14, centerX - chosen.left), width - 14) + "px");
+  tip.style.setProperty("--arrowY", Math.min(Math.max(14, centerY - chosen.top), height - 14) + "px");
+  return chosen.side;
+}
+function showCameraTip(item, clientX, clientY) {
+  if (!item) { cameraTip.hidden = true; return; }
+  cameraTip.replaceChildren(Object.assign(document.createElement("b"), { textContent: item.label }));
+  if (item.product) cameraTip.append(Object.assign(document.createElement("div"), { className: "tipProduct", textContent: item.product }));
+  const notes = item.notes || [];
+  cameraTip.append(Object.assign(document.createElement("div"), { className: "tipHead", textContent: notes.length ? "無重力飛行で使うときの注意" : "注意事項はまだ登録されていません" }));
+  if (notes.length) {
+    const list = document.createElement("ul");
+    for (const note of notes) list.append(Object.assign(document.createElement("li"), { textContent: note }));
+    cameraTip.append(list);
+  }
+  if (item.deviceId) cameraTip.append(Object.assign(document.createElement("div"), { className: "tipHint", textContent: "クリックすると、この機器を操作できます" }));
+  cameraTip.hidden = false;
+  placeTip(cameraTip, deviceScreenRect(item), clientX, clientY);   // 機器にかぶらない所へ（前はポインターの上で、機器にかぶっていた）
+}
+renderer.domElement.addEventListener("pointermove", (event) => {
+  if (event.buttons) { cameraTip.hidden = true; return; }  // ドラッグで見回している間は出さない
+  if (!$("devicePop").hidden) { cameraTip.hidden = true; return; }   // 操作の吹き出しを開いている間は出さない
+  const rect = renderer.domElement.getBoundingClientRect();
+  const item = cameraUnder((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
+  showCameraTip(item, event.clientX, event.clientY);
+  renderer.domElement.style.cursor = item ? "help" : "";
+});
+renderer.domElement.addEventListener("pointerleave", () => { cameraTip.hidden = true; });
+
+// ── 機器の操作の画面（右上の「🎛 機器の操作」と、機器をクリックして出す吹き出し。どちらも同じ状態を操作する）──────
+function el(tag, props, children) {
+  const node = Object.assign(document.createElement(tag), props || {});
+  for (const child of children || []) node.append(child);
+  return node;
+}
+function deviceControls(id) {
+  const box = el("div", { className: "deviceBox" });
+  box.dataset.device = id;
+  fillDeviceControls(box, id);
+  return box;
+}
+function fillDeviceControls(box, id) {
+  const device = DEVICE_LIST.find((item) => item.id === id);
+  const state = deviceState[id];
+  const button = (label, onclick, on, disabled, extra) => el("button", { className: "mini" + (on ? " on" : "") + (extra ? " " + extra : ""), textContent: label, onclick, disabled: !!disabled });
+  const row = (...children) => el("div", { className: "deviceRow" }, children);
+  const parts = [el("div", { className: "deviceTitle", textContent: device.title }), el("div", { className: "deviceStatus" })];
+  parts.push(row(button(state.power ? "電源：オン（押すと切る）" : "電源：オフ（押すと入れる）", () => deviceAction(id, "power"), state.power)));
+  if (device.kind === "led") {
+    parts.push(row(button("色温度（白色・暖色）", () => setDevice(id, { mode: "cct" }), state.mode === "cct"), button("RGB（360色）", () => setDevice(id, { mode: "rgb" }), state.mode === "rgb")));
+    parts.push(slider("明るさ", 10, 100, 1, state.brightness, "%", (value) => setDevice(id, { brightness: value })));
+    if (state.mode === "cct") parts.push(slider("色温度（3200K 暖色 〜 5600K 白色）", 3200, 5600, 100, state.kelvin, "K", (value) => setDevice(id, { kelvin: value })));
+    else parts.push(slider("色（色相 0〜359°）", 0, 359, 1, state.hue, "°", (value) => setDevice(id, { hue: value })));
+    parts.push(row(button("バッテリーを交換（NP-F×2）", () => deviceAction(id, "battery"))));
+  } else {
+    const photo = device.kind === "gopro" && state.mode === "photo";
+    if (device.kind === "gopro") {
+      parts.push(row(...Object.entries(GOPRO_MODES).map(([mode, label]) => button(label, () => setDevice(id, { mode }), state.mode === mode, !state.power || state.recording))));
+    }
+    parts.push(row(button(photo ? "📷 シャッター（写真を撮る）" : state.recording ? "■ 録画を止める" : "● 録画を始める", () => deviceAction(id, "record"), false, !state.power, state.recording ? "rec" : "")));
+    if (device.kind === "gopro") {
+      parts.push(choice("解像度・フレームレート", GOPRO_FORMATS, state.format, (value) => setDevice(id, { format: value }), state.recording));
+      parts.push(choice("デジタルレンズ", Object.keys(GOPRO_LENSES), state.lens, (value) => {
+        setDevice(id, { lens: value });
+        if (seatSelect.value === "cam:" + id) applyView(seatSelect.value);   // このGoProの視点で見ていたら、画角も変わる
+      }, state.recording));
+    }
+    parts.push(row(button("バッテリーを交換", () => deviceAction(id, "battery")), button("microSD を空にする", () => deviceAction(id, "memory"), false, state.recording)));
+  }
+  box.replaceChildren(...parts);
+  updateDeviceStatus(box);
+}
+function slider(label, min, max, step, value, unit, onInput) {
+  const shown = el("b", { textContent: value + unit });
+  const input = el("input", { type: "range", min, max, step, value });
+  input.addEventListener("input", () => { shown.textContent = input.value + unit; onInput(Number(input.value)); });
+  return el("label", { className: "deviceSlider" }, [label + "　", shown, input]);
+}
+function choice(label, options, value, onChange, disabled) {
+  const input = el("select", { disabled: !!disabled });
+  for (const option of options) input.append(new Option(option, option, false, option === value));
+  input.addEventListener("change", () => onChange(input.value));
+  return el("label", { className: "deviceSlider" }, [label + "　", input]);
+}
+function updateDeviceStatus(box) {
+  const id = box.dataset.device;
+  const device = DEVICE_LIST.find((item) => item.id === id);
+  const state = deviceState[id];
+  const status = box.querySelector(".deviceStatus");
+  if (!status || !device) return;
+  const load = device.kind === "led" ? Math.max(0.1, state.brightness / 100) : state.recording ? 1 : 0.5;
+  const left = DEVICE_SPEC[device.kind].battery * state.battery / 100 / load;
+  const lines = [];
+  if (device.kind === "led") lines.push(state.power && state.battery > 0 ? "点灯中　明るさ " + state.brightness + "%・" + (state.mode === "cct" ? state.kelvin + "K" : "RGB " + state.hue + "°") : "消灯");
+  else if (!state.power) lines.push("電源オフ");
+  else if (state.recording) lines.push("● 録画中 " + formatTime((performance.now() - state.recordStart) / 1000));
+  else if (device.kind === "gopro") lines.push(GOPRO_MODES[state.mode] + "（" + (state.mode === "photo" ? "23MP・" + state.photos + "枚" : state.format + "・" + state.lens) + "）");
+  else lines.push("待機中（STBY）");
+  lines.push("バッテリー " + Math.round(state.battery) + "%（目安 あと約" + Math.round(left) + "分）" + (device.kind === "led" ? "" : "・microSD 残り約" + formatMinutes(state.memory)));
+  if (state.message) lines.push("⚠ " + state.message);
+  status.textContent = lines.join("\n");
+}
+function refreshDeviceViews(valuesOnly) {
+  for (const box of document.querySelectorAll(".deviceBox")) {
+    const dragging = box.contains(document.activeElement) && document.activeElement.type === "range";
+    if (valuesOnly || dragging) updateDeviceStatus(box);
+    else fillDeviceControls(box, box.dataset.device);
+  }
+  for (const id of Object.keys(deviceScreens)) drawDeviceScreen(id, performance.now());
+}
+let selectedDevice = DEVICE_LIST[0].id;
+function renderDevicePanel() {
+  $("deviceTabs").replaceChildren(...DEVICE_LIST.map((device) => el("button", {
+    className: "mini" + (device.id === selectedDevice ? " on" : ""), textContent: device.name,
+    onclick: () => { selectedDevice = device.id; renderDevicePanel(); } })));
+  $("deviceArea").replaceChildren(deviceControls(selectedDevice));
+}
+renderDevicePanel();
+// 機器をクリックすると、注意事項と操作の吹き出しを開く（ドラッグで見回したときは開かない）
+const devicePop = $("devicePop");
+function openDevicePop(item, clientX, clientY) {
+  if (!item) { devicePop.hidden = true; return; }
+  cameraTip.hidden = true;
+  const parts = [el("b", { textContent: item.label })];
+  if (item.product) parts.push(el("div", { className: "tipProduct", textContent: item.product }));
+  const notes = item.notes || [];
+  if (notes.length) {
+    parts.push(el("div", { className: "tipHead", textContent: "無重力飛行で使うときの注意" }));
+    parts.push(el("ul", {}, notes.map((note) => el("li", { textContent: note }))));
+  }
+  if (item.deviceId) {
+    parts.push(el("div", { className: "tipHead", textContent: "操作" }));
+    parts.push(deviceControls(item.deviceId));
+  }
+  devicePop.replaceChildren(el("button", { className: "popClose", textContent: "×", title: "閉じる", onclick: () => { devicePop.hidden = true; } }), el("div", { className: "popBody" }, parts));
+  devicePop.hidden = false;
+  popFollow = { item, x: clientX, y: clientY, key: "", placed: false };
+  followDevicePop();
+}
+let popFollow = null;
+function followDevicePop() {                               // 開いている操作の吹き出しを、機器にかぶらない所へ（視点が動いたり、中身の高さが変わったりしたら置き直す）
+  if (!popFollow || devicePop.hidden) return;
+  const rect = deviceScreenRect(popFollow.item);
+  const key = (rect ? [rect.left, rect.top, rect.right, rect.bottom].map(Math.round).join(",") : "none") + "|" + devicePop.offsetWidth + "x" + devicePop.offsetHeight;
+  if (key === popFollow.key) return;
+  popFollow.key = key;
+  if (!rect && popFollow.placed) return;                    // 機器がカメラの後ろに回ったときは、いまの所のまま
+  placeTip(devicePop, rect, popFollow.x, popFollow.y, devicePop.querySelector(".popBody"));
+  popFollow.placed = true;
+}
+let pressAt = null;
+renderer.domElement.addEventListener("pointerdown", (event) => { pressAt = { x: event.clientX, y: event.clientY, time: performance.now() }; });
+renderer.domElement.addEventListener("pointerup", (event) => {
+  const press = pressAt;
+  pressAt = null;
+  if (!press || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5 || performance.now() - press.time > 600) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  openDevicePop(cameraUnder((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1), event.clientX, event.clientY);
+});
+// 1秒ごと：電池とmicroSDの残りを減らす（目安）。切れたら電源が切れる・録画が止まる
+setInterval(() => {
+  let changed = false;
+  for (const device of DEVICE_LIST) {
+    const state = deviceState[device.id];
+    if (!state.power) continue;
+    const load = device.kind === "led" ? state.brightness / 100 : state.recording ? 1 : 0.5;
+    state.battery = Math.max(0, state.battery - load * 100 / (DEVICE_SPEC[device.kind].battery * 60));
+    if (state.recording) state.memory = Math.max(0, state.memory - 1 / 60);
+    if (state.battery <= 0) { Object.assign(state, { power: false, recording: false, message: "バッテリーが切れました。交換してください" }); changed = true; }
+    else if (state.recording && state.memory <= 0) { Object.assign(state, { recording: false, message: "microSD がいっぱいです" }); changed = true; }
+    if (device.kind === "led") applyLed(device.side);
+  }
+  saveDevices();
+  refreshDeviceViews(!changed);
+}, 1000);
+// 描くたびに：液晶の表示（0.15秒ごと）と、電源の入ったカメラの映像（1回に1台ずつ）
+const liveCamera = new THREE.PerspectiveCamera(60, 4 / 3, 0.03, 40);
+let lastScreenDraw = 0, liveTurn = 0;
+function updateDeviceScreens(now) {
+  if (now - lastScreenDraw < 150) return;
+  lastScreenDraw = now;
+  for (const id of Object.keys(deviceScreens)) drawDeviceScreen(id, now);
+  if (renderer.xr.isPresenting) return;                    // VRの中では、液晶の映像は止めておく（描く回数を増やさない）
+  const live = Object.keys(deviceScreens).filter((id) => deviceState[id].power);
+  if (live.length) renderLiveView(live[liveTurn++ % live.length]);
+}
+function renderLiveView(id) {
+  const holder = deviceScreens[id];
+  const item = cameraList.find((camera) => camera.id === id);
+  const screen = holder && Object.values(holder.screens).find((entry) => entry.target);
+  if (!item || !screen || !holder.model) return;
+  liveCamera.fov = cameraFov(item);
+  liveCamera.aspect = screen.aspect;
+  liveCamera.updateProjectionMatrix();
+  liveCamera.position.set(...item.position);
+  liveCamera.lookAt(...item.target);
+  const visible = holder.model.visible, autoShadow = renderer.shadowMap.autoUpdate;
+  holder.model.visible = false;                            // カメラ自身は映さない
+  renderer.shadowMap.autoUpdate = false;
+  renderer.setRenderTarget(screen.target);
+  renderer.render(scene, liveCamera);
+  renderer.setRenderTarget(null);
+  holder.model.visible = visible;
+  renderer.shadowMap.autoUpdate = autoShadow;
+}
+
+function nextCameraView() {                                // VRの A ボタン：撮影カメラの視点を順に
+  const keys = cameraList.map((item) => "cam:" + item.id);
+  if (keys.length) applyView(keys[(keys.indexOf(seatSelect.value) + 1) % keys.length]);
+}
+renderMounts();
+
+function currentPose() {
+  return { position: camera.position.toArray().map((n) => +n.toFixed(3)),
+           target: controls.target.toArray().map((n) => +n.toFixed(3)), fov: camera.fov };
+}
+async function postCamera(body) {
+  const response = await fetch("/api/cameras", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || String(response.status));
+  return result.camera;
+}
+$("camAdd").addEventListener("click", async () => {
+  const label = prompt("カメラの名前（例：GoPro 3（天井の左）／制作会社のカメラ）");
+  if (!label) return;
+  try {
+    const saved = await postCamera(Object.assign({ label }, currentPose()));
+    await loadUserCameras("cam:" + saved.id);
+    applyView("cam:" + saved.id);
+  } catch (error) { alert("保存できませんでした：" + error.message); }
+});
+$("camMove").addEventListener("click", async () => {
+  const item = selectedCamera();
+  if (!item) return;
+  try {
+    if (item.userAdded) {
+      const saved = await postCamera(Object.assign({ label: item.label }, currentPose()));
+      await fetch("/api/cameras/" + encodeURIComponent(item.id) + "/delete", { method: "POST" });
+      await loadUserCameras("cam:" + saved.id);
+      applyView("cam:" + saved.id);
+    } else {
+      await postCamera(Object.assign({ base: item.id }, currentPose()));
+      await loadUserCameras("cam:" + item.id);
+      applyView("cam:" + item.id);
+    }
+  } catch (error) { alert("保存できませんでした：" + error.message); }
+});
+$("camReset").addEventListener("click", async () => {
+  const item = selectedCamera();
+  if (!item) return;
+  const id = item.userAdded ? item.id : item.overrideId;
+  if (!id || (item.userAdded && !confirm("「" + item.label + "」を消しますか？"))) return;
+  await fetch("/api/cameras/" + encodeURIComponent(id) + "/delete", { method: "POST" });
+  const next = item.userAdded ? Object.keys(VIEWS)[0] : "cam:" + item.id;
+  await loadUserCameras(next);
+  applyView(next);
+});
+
+// 機尾側の仕切りの入れ替え（Unityでパーツを差し替えるのと同じ考え方）
+function setAft(mode) {
+  root.getObjectByName("EquipmentRack").visible = mode === "aircraft";
+  root.getObjectByName("BlackoutCurtain").visible = mode === "simulator";
+}
+document.getElementById("aft").addEventListener("change", (event) => setAft(event.target.value));
+setAft("aircraft");
+
+// ── 電光掲示板（Gメーター）：飛行の段階ごとの G を数字で出す（TAICHI 09-17） ──
+const gCanvas = document.createElement("canvas");
+gCanvas.width = 512;
+gCanvas.height = 212;
+const gTexture = new THREE.CanvasTexture(gCanvas);
+gTexture.colorSpace = THREE.SRGBColorSpace;
+let currentG = 1.0;
+// 実機の表示（写真 2022-12-05）：赤い7セグメントの数字で「0.99」。小数2けた・単位なし
+const SEGMENTS = { "0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc", "5": "afgcd", "6": "afgedc", "7": "abc", "8": "abcdefg", "9": "abcdfg" };
+function drawDigit(context, digit, x, y, w, h, on, off) {
+  const t = w * 0.18, half = h / 2;
+  const bars = { a: [x + t, y, w - 2 * t, t], d: [x + t, y + h - t, w - 2 * t, t], g: [x + t, y + half - t / 2, w - 2 * t, t],
+                 f: [x, y + t, t, half - 1.5 * t], b: [x + w - t, y + t, t, half - 1.5 * t],
+                 e: [x, y + half + t / 2, t, half - 1.5 * t], c: [x + w - t, y + half + t / 2, t, half - 1.5 * t] };
+  for (const [name, rect] of Object.entries(bars)) {
+    context.fillStyle = SEGMENTS[digit].includes(name) ? on : off;
+    context.fillRect(rect[0], rect[1], rect[2], rect[3]);
+  }
+}
+function drawG(value) {
+  currentG = value;
+  const context = gCanvas.getContext("2d");
+  context.fillStyle = "#0a0202";
+  context.fillRect(0, 0, gCanvas.width, gCanvas.height);
+  const text = Math.max(0, value).toFixed(2);          // 例 "1.00" "1.80" "0.00"
+  const w = 104, h = 160, gap = 22, top = (gCanvas.height - h) / 2;
+  let x = (gCanvas.width - (3 * w + 2 * gap + 30)) / 2;
+  context.shadowColor = "rgba(255, 40, 20, 0.85)";
+  context.shadowBlur = 18;
+  for (const character of text) {
+    if (character === ".") {
+      context.fillStyle = "#ff3b1f";
+      context.fillRect(x - gap / 2 - 4, top + h - 22, 22, 22);
+      x += 30 - gap;
+      continue;
+    }
+    drawDigit(context, character, x, top, w, h, "#ff3b1f", "rgba(90, 10, 5, 0.35)");
+    x += w + gap;
+  }
+  context.shadowBlur = 0;
+  gTexture.needsUpdate = true;
+}
+const gFace = shell.getObjectByName("GravityDisplay_Face");
+if (gFace) {
+  const faceBox = new THREE.Box3().setFromObject(gFace);
+  const size = faceBox.getSize(new THREE.Vector3());
+  const centre = faceBox.getCenter(new THREE.Vector3());
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(size.z, size.y), new THREE.MeshBasicMaterial({ map: gTexture, toneMapped: false }));
+  plate.position.set(faceBox.min.x - 0.001, centre.y, centre.z);
+  plate.rotation.y = -Math.PI / 2;                       // 機首側（客室）へ向ける。文字は左右反転しない
+  plate.name = "GravityDisplay_Numbers";
+  root.add(plate);
+  gFace.visible = false;
+}
+drawG(1.0);
+
+// ── シートベルト：無重力のときは、付け根を残してぷかぷか浮く（TAICHI 09-17） ──
+let zeroTarget = 0, zeroBlend = 0, beltsResting = true;
+const belts = [];
+for (const prefabName of ["seat", "bench_seat"]) {
+  const prefab = prefabs[prefabName];
+  if (!prefab) continue;
+  prefab.traverse((child) => {
+    if (!child.isMesh || !/^(Seat_Belt|Bench_Belt)/.test(child.name)) return;
+    child.geometry.computeBoundingBox();
+    const bb = child.geometry.boundingBox;
+    const alongX = (bb.max.x - bb.min.x) >= (bb.max.z - bb.min.z);
+    belts.push({
+      geometry: child.geometry, rest: child.geometry.attributes.position.array.slice(),
+      axis: alongX ? 0 : 2, min: alongX ? bb.min.x : bb.min.z, max: alongX ? bb.max.x : bb.max.z,
+      anchorAtMax: child.name.endsWith("_Right"), phase: Math.random() * Math.PI * 2,
+    });
+  });
+}
+root.traverse((child) => { if (child.isMesh && /^(Seat_Belt|Bench_Belt)/.test(child.name)) child.frustumCulled = false; });
+function floatBelts(time) {
+  for (const belt of belts) {
+    const array = belt.geometry.attributes.position.array;
+    const length = belt.max - belt.min || 1;
+    const back = belt.anchorAtMax ? 1 : -1;              // 付け根の向き
+    const other = belt.axis === 0 ? 2 : 0;
+    for (let i = 0; i < array.length; i += 3) {
+      const along = (belt.rest[i + belt.axis] - belt.min) / length;
+      const t = belt.anchorAtMax ? 1 - along : along;    // 付け根で0、先で1
+      const distance = t * length;
+      const angle = zeroBlend * t * (0.95 + 0.35 * Math.sin(time * 1.1 + belt.phase + t * 2.5));
+      array[i + belt.axis] = belt.rest[i + belt.axis] + back * distance * (1 - Math.cos(angle));
+      array[i + 1] = belt.rest[i + 1] + distance * Math.sin(angle);
+      array[i + other] = belt.rest[i + other] + zeroBlend * t * 0.03 * Math.sin(time * 0.8 + belt.phase * 1.7 + t * 1.5);
+    }
+    belt.geometry.attributes.position.needsUpdate = true;
+    belt.geometry.computeVertexNormals();
+  }
+}
+
+// 飛行の段階。映像と説明だけで、体にかかる力は再現しない
+const phasesBox = document.getElementById("phases");
+const note = document.getElementById("note");
+PHASES.forEach((phase, index) => {
+  const button = document.createElement("button");
+  button.className = "phase" + (phase.zero ? " zero" : "");
+  button.textContent = phase.label;
+  button.addEventListener("click", () => setPhase(index));
+  phasesBox.appendChild(button);
+});
+function setPhase(index) {
+  [...phasesBox.children].forEach((child, i) => child.classList.toggle("on", i === index));
+  const phase = PHASES[index];
+  note.innerHTML = phase.note + '　<span style="color:#6f7886">（この試作は加速度を再現しません）</span>';
+  // 無重力のときだけ、窓からの光を少し強くする（体感の代わりの合図）
+  M.glass.emissiveIntensity = phase.zero ? 0.85 : 0.55;
+  drawG(phase.g);                                          // Gメーターの数字
+  zeroTarget = phase.zero ? 1 : 0;                         // 無重力のときだけベルトが浮く
+  sky.intensity = phase.zero ? 0.75 : 0.55;
+}
+setPhase(0);
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+// ── 移動（速さは画面で調整。トラックパッド・キーボード・ゲームパッド・VRのスティック共通） ──
+const SPEED_KEY = "zerog_sim.speed";
+let speed = 1.5;
+try {
+  const saved = parseFloat(localStorage.getItem(SPEED_KEY));
+  if (saved >= 0.25 && saved <= 4) speed = saved;
+} catch (error) { /* 保存できない環境でも動く */ }
+function applySpeed(value) {
+  speed = value;
+  $("speed").value = String(value);
+  $("speedValue").textContent = (Math.round(value * 100) / 100) + "×";
+  controls.rotateSpeed = 0.7 * Math.sqrt(value);   // 見回しは速すぎると酔うので、効き方をゆるくする
+  controls.panSpeed = value;
+  try { localStorage.setItem(SPEED_KEY, String(value)); } catch (error) { /* 次回は既定の速さ */ }
+}
+$("speed").addEventListener("input", (event) => applySpeed(parseFloat(event.target.value)));
+applySpeed(speed);
+
+const UP = new THREE.Vector3(0, 1, 0);
+const forward = new THREE.Vector3(), rightward = new THREE.Vector3(), step = new THREE.Vector3(), offset = new THREE.Vector3();
+function moveBy(metresForward, metresRight, metresUp) {
+  camera.getWorldDirection(forward);
+  rightward.crossVectors(forward, UP).normalize();
+  step.set(0, 0, 0).addScaledVector(forward, metresForward).addScaledVector(rightward, metresRight).addScaledVector(UP, metresUp);
+  camera.position.add(step);
+  controls.target.add(step);           // 見ている先ごと動かす（向きは変わらない）
+}
+function look(yaw, pitch) {
+  if (!yaw && !pitch) return;
+  offset.subVectors(controls.target, camera.position).applyAxisAngle(UP, -yaw);
+  camera.getWorldDirection(forward);
+  rightward.crossVectors(forward, UP).normalize();
+  offset.applyAxisAngle(rightward, -pitch);
+  controls.target.copy(camera.position).add(offset);
+}
+renderer.domElement.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
+  const limit = (value) => Math.max(-0.6, Math.min(0.6, value));
+  if (event.ctrlKey) {                                     // ピンチ（トラックパッドは ctrlKey つきの wheel）：前後。広げると前へ
+    moveBy(limit(-event.deltaY * unit * 6 * 0.004 * speed), 0, 0);
+  } else {                                                 // 2本指のスクロール：上下は縦に、左右は横に（TAICHI 09-17）
+    const scale = 0.004 * speed;
+    moveBy(0, limit(event.deltaX * unit * scale), limit(event.deltaY * unit * scale));
+  }
+}, { passive: false });
+
+const keys = new Set();
+addEventListener("keydown", (event) => {
+  if (event.target.closest && event.target.closest("textarea, input, select")) return;   // 依頼を書いている間は動かない
+  if (event.code === "KeyL" && !event.repeat) setLed(!(ledState("Port").power && ledState("Starboard").power));   // L：左右のLEDをまとめてオンオフ
+  if (event.code === "KeyH" && !event.repeat) setPanels(!document.body.classList.contains("panelsHidden"));   // H：操作パネルの表示／非表示
+  keys.add(event.code);
+});
+addEventListener("keyup", (event) => keys.delete(event.code));
+addEventListener("blur", () => keys.clear());
+const deadzone = (value) => (Math.abs(value) < 0.15 ? 0 : value);
+
+function stepBrowser(dt) {
+  const metres = 1.2 * speed * dt * (keys.has("ShiftLeft") || keys.has("ShiftRight") ? 2.5 : 1);
+  let ahead = 0, side = 0, lift = 0;
+  if (keys.has("KeyW") || keys.has("ArrowUp")) ahead += 1;
+  if (keys.has("KeyS") || keys.has("ArrowDown")) ahead -= 1;
+  if (keys.has("KeyD") || keys.has("ArrowRight")) side += 1;
+  if (keys.has("KeyA") || keys.has("ArrowLeft")) side -= 1;
+  if (keys.has("KeyE")) lift += 1;
+  if (keys.has("KeyQ")) lift -= 1;
+  for (const pad of navigator.getGamepads ? navigator.getGamepads() : []) {
+    if (!pad || pad.mapping !== "standard") continue;          // 標準の並びのゲームパッド
+    side += deadzone(pad.axes[0]);
+    ahead -= deadzone(pad.axes[1]);
+    lift += (pad.buttons[7] ? pad.buttons[7].value : 0) - (pad.buttons[6] ? pad.buttons[6].value : 0);
+    const turn = 1.8 * Math.min(speed, 2) * dt;
+    look(deadzone(pad.axes[2]) * turn, deadzone(pad.axes[3]) * turn * 0.7);
+  }
+  if (ahead || side || lift) moveBy(ahead * metres, side * metres, lift * metres);
+}
+
+let snapReady = true;
+let cameraButtonReady = true;
+const head = new THREE.Vector3();
+function stepXR(dt) {
+  const session = renderer.xr.getSession();
+  if (!session) return;
+  const xrCamera = renderer.xr.getCamera();
+  xrCamera.getWorldDirection(forward);
+  forward.y = 0;
+  forward.normalize();
+  rightward.crossVectors(forward, UP).normalize();
+  for (const source of session.inputSources) {
+    const pad = source.gamepad;
+    if (!pad || pad.axes.length < 4) continue;
+    const x = deadzone(pad.axes[2]), y = deadzone(pad.axes[3]);
+    if (source.handedness === "left") {                         // 左のスティック：見ている向きに進む
+      rig.position.addScaledVector(forward, -y * 1.2 * speed * dt).addScaledVector(rightward, x * 1.2 * speed * dt);
+    } else if (source.handedness === "right") {                 // 右のスティック：左右で30度ずつ向きを変える・前後で上下
+      if (Math.abs(x) > 0.7 && snapReady) {
+        const angle = (x > 0 ? -1 : 1) * Math.PI / 6;
+        head.setFromMatrixPosition(xrCamera.matrixWorld);
+        rig.position.sub(head).applyAxisAngle(UP, angle).add(head);
+        rig.rotation.y += angle;
+        snapReady = false;
+      }
+      if (Math.abs(x) < 0.3) snapReady = true;
+      rig.position.y += -y * 0.8 * speed * dt;
+      const buttonA = pad.buttons[4];                             // 右の A ボタン：撮影カメラの視点を順に切り替える
+      if (buttonA && buttonA.pressed && cameraButtonReady) { nextCameraView(); cameraButtonReady = false; }
+      if (buttonA && !buttonA.pressed) cameraButtonReady = true;
+    }
+  }
+}
+renderer.xr.addEventListener("sessionstart", () => {          // いまの視点の床の位置からVRを始める
+  rig.position.set(camera.position.x, 0, camera.position.z);
+});
+renderer.xr.addEventListener("sessionend", () => {            // VRで最後にいた場所と向きを、ブラウザの視点に引き継ぐ
+  rig.updateMatrixWorld(true);
+  const position = camera.getWorldPosition(new THREE.Vector3());
+  const direction = camera.getWorldDirection(new THREE.Vector3());
+  rig.position.set(0, 0, 0);
+  rig.rotation.set(0, 0, 0);
+  rig.updateMatrixWorld(true);
+  camera.position.copy(position);
+  controls.target.copy(position).addScaledVector(direction, 1.0);
+  controls.update();
+});
+
+// ── AIへの依頼（Claude Code のチャットと同じ一覧。正本は zerog_sim/requests.json） ──
+const STATUS_CLASS = { "未対応": "s0", "対応中": "s1", "対応済み": "s2", "取り下げ": "s3" };
+async function loadRequests() {
+  try {
+    const response = await fetch("/api/requests", { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || String(response.status));
+    renderRequests(result.requests);
+  } catch (error) {
+    $("askMsg").textContent = "依頼の一覧を読めません（アプリをランチャーから起動してください）";
+  }
+}
+function renderRequests(items) {
+  const open = items.filter((item) => item.status === "未対応" || item.status === "対応中").length;
+  $("askCount").textContent = open ? "（" + open + "）" : "";
+  $("askList").replaceChildren(...items.map((item) => {
+    const box = document.createElement("div");
+    box.className = "req";
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const badge = document.createElement("span");
+    badge.className = "badge " + (STATUS_CLASS[item.status] || "");
+    badge.textContent = item.status;
+    const info = document.createElement("span");
+    info.textContent = item.created.slice(0, 16).replace("T", " ") + "・" + item.source + (item.mac ? "・" + item.mac : "");
+    meta.append(badge, info);
+    if (item.status === "未対応" && item.source === "アプリ") {
+      const withdraw = document.createElement("button");
+      withdraw.textContent = "取り下げる";
+      withdraw.addEventListener("click", async () => {
+        const response = await fetch("/api/requests/" + encodeURIComponent(item.id) + "/withdraw", { method: "POST" });
+        if (!response.ok) $("askMsg").textContent = (await response.json()).error || "取り下げられませんでした";
+        loadRequests();
+      });
+      meta.append(withdraw);
+    }
+    const text = document.createElement("div");
+    text.className = "text";
+    text.textContent = item.text;
+    box.append(meta, text);
+    if (item.reply) {
+      const reply = document.createElement("div");
+      reply.className = "reply";
+      reply.textContent = "Claude：" + item.reply;
+      box.append(reply);
+    }
+    return box;
+  }));
+}
+async function sendRequest() {
+  const text = $("askText").value.trim();
+  if (!text) { $("askMsg").textContent = "書いてから送ってください"; return; }
+  $("askSend").disabled = true;
+  try {
+    const response = await fetch("/api/requests", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || String(response.status));
+    $("askText").value = "";
+    $("askMsg").textContent = "送りました。Claude が対応すると、ここに返事が出ます";
+    loadRequests();
+  } catch (error) {
+    $("askMsg").textContent = "送れませんでした：" + error.message;   // 書いた文は消さない
+  } finally {
+    $("askSend").disabled = false;
+  }
+}
+$("askSend").addEventListener("click", sendRequest);
+$("askText").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) sendRequest();
+});
+$("askOpen").addEventListener("click", () => { $("ask").hidden = false; loadRequests(); $("askText").focus(); });
+$("askClose").addEventListener("click", () => { $("ask").hidden = true; });
+let askTicks = 0;
+if (PUBLIC_SITE) {
+  $("askOpen").hidden = true;                              // 公開版には出さない（TAICHI の依頼の一覧に書けてしまう）
+} else {
+  setInterval(() => {                    // 開いている間は10秒ごと、閉じている間は1分ごとに返事を見に行く
+    askTicks += 1;
+    if (!$("ask").hidden || askTicks % 6 === 0) loadRequests();
+  }, 10000);
+  loadRequests();
+}
+
+// ── 掛け声（2分前・30秒前。TAICHI 09-17）：実際のフライト動画から切り出したスタッフの声（audio/*_real.m4a）が
+//    あればそれを、無ければ合成の声（audio/*_voice.m4a）を鳴らす ──
+let lastCallout = "";
+async function playCallout(key) {
+  const sources = [["audio/callout_" + key + "_real.m4a", "実際の声"], ["audio/callout_" + key + "_voice.m4a", "合成の声"]];
+  for (const [file, kind] of PUBLIC_SITE ? sources.slice(1) : sources) {   // 公開版は合成の声だけ（TAICHI 09-17「外部版だけ合成版」）
+    try {
+      const audio = new Audio(file);
+      await audio.play();                                    // 無いファイル（404）は再生できずに次へ
+      lastCallout = file;
+      $("callNote").textContent = kind;
+      return;
+    } catch (error) { /* 次の候補 */ }
+  }
+  $("callNote").textContent = "音声がありません";
+}
+$("call2").addEventListener("click", () => playCallout("2min"));
+$("call30").addEventListener("click", () => playCallout("30s"));
+
+// 動作確認用（数字で確かめるため）
+window.zerogDebug = { camera, controls, moveBy, applySpeed, rig, applyView, setPhase, belts, setLed, ledLights, setLedSide, get led() { return { Port: ledState("Port").power, Starboard: ledState("Starboard").power }; }, deviceState, setDevice, deviceAction, openDevicePop, renderer, scene, cameraUnder, showCameraTip,   // renderer・scene：画面が隠れていても1枚描いて確かめる
+  get speed() { return speed; }, get g() { return currentG; }, get lastCallout() { return lastCallout; }, get zeroBlend() { return zeroBlend; }, get cameras() { return cameraList; } };
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.1);
+  zeroBlend += (zeroTarget - zeroBlend) * Math.min(1, dt * 1.2);
+  if (zeroBlend > 0.002 || zeroTarget) {
+    floatBelts(clock.elapsedTime);
+    beltsResting = false;
+  } else if (!beltsResting) {
+    zeroBlend = 0;
+    floatBelts(clock.elapsedTime);                         // 元の位置に戻す
+    beltsResting = true;
+  }
+  if (renderer.xr.isPresenting) {
+    stepXR(dt);
+  } else {
+    stepBrowser(dt);
+    controls.update();
+    followDevicePop();                                     // 操作の吹き出しを機器にかぶらない所へ
+  }
+  updateDeviceScreens(performance.now());                   // iVIS mini・GoPro の液晶
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
