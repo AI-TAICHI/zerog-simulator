@@ -208,8 +208,9 @@ const PHASES = [
 
 const view = document.getElementById("view");
 const $ = (id) => document.getElementById(id);
-// 外部に公開する版（make_public.py が <html data-site="public"> にする。TAICHI 09-17「だれでも使える」「外部版は合成の声だけ」）：
-// サーバーに書き込む機能（AIへの依頼・カメラの追加と置き直し）を出さず、掛け声は合成の声だけにする
+// 外部に公開する版（make_public.py が <html data-site="public"> にする。TAICHI 09-17「だれでも使える」）：
+// サーバーに書き込む機能（AIへの依頼・カメラの追加と置き直し）を出さない。
+// 掛け声は2026-09-18から公開版も実際のスタッフの声（運航会社の了承をTAICHIが取った）
 const PUBLIC_SITE = document.documentElement.dataset.site === "public";
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.03, 80);
@@ -402,6 +403,7 @@ const LED_INTENSITY = 9.0;                      // 見た目で決めた値（60
 const LED_SIDE_NAMES = { Port: "左", Starboard: "右" };   // 進行方向に向かって左＝左舷
 const ledLights = { Port: [], Starboard: [] };
 const ledFaces = {};
+const ledGroups = {};                                      // LEDの台ごと（ポールを軸に左右へ回せる。TAICHI 2026-09-18）
 root.traverse((child) => {
   if (!child.isMesh || child.name !== "LED_Face") return;
   let group = child.parent;
@@ -409,18 +411,28 @@ root.traverse((child) => {
   const side = group ? group.name.slice(4) : "Port";
   child.material = M.ledFace.clone();                      // 左右で別々に光らせる
   ledFaces[side] = child.material;
+  if (group && !ledGroups[side]) ledGroups[side] = { group, baseRotationY: group.rotation.y };
   const panel = child.parent.children.find((sibling) => sibling.name === "LED_Panel");
-  const face = new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3());
-  const back = new THREE.Box3().setFromObject(panel || child).getCenter(new THREE.Vector3());
-  const direction = face.clone().sub(back);
-  if (direction.lengthSq() < 1e-8) direction.set(1, 0, 0);
-  direction.normalize();                                   // 箱（LED_Panel）の中心から顔の中心へ＝光の向き
   const light = new THREE.SpotLight(0xfff4e6, LED_INTENSITY, 0, Math.PI / 3, 0.75, 2);
-  light.position.copy(face).addScaledVector(direction, 0.03);
-  light.target.position.copy(face).addScaledVector(direction, 2.0);
+  light.userData.faceMesh = child;
+  light.userData.panelMesh = panel || child;
   scene.add(light, light.target);
   ledLights[side].push(light);
 });
+// LEDの光を、いまの本体の位置・向きに合わせる（箱＝LED_Panel の中心から顔の中心へ向かう方向が光の向き）
+const ledFaceCentre = new THREE.Vector3(), ledBackCentre = new THREE.Vector3(), ledDirection = new THREE.Vector3();
+function aimLed(side) {
+  for (const light of ledLights[side]) {
+    new THREE.Box3().setFromObject(light.userData.faceMesh).getCenter(ledFaceCentre);
+    new THREE.Box3().setFromObject(light.userData.panelMesh).getCenter(ledBackCentre);
+    ledDirection.subVectors(ledFaceCentre, ledBackCentre);
+    if (ledDirection.lengthSq() < 1e-8) ledDirection.set(1, 0, 0);
+    ledDirection.normalize();
+    light.position.copy(ledFaceCentre).addScaledVector(ledDirection, 0.03);
+    light.target.position.copy(ledFaceCentre).addScaledVector(ledDirection, 2.0);
+    light.target.updateMatrixWorld();
+  }
+}
 // ── 機器の状態（TAICHI 09-17「LED照明の明るさや色味の調整」「iVIS mini・GoPro HERO10 の操作の練習」）────────────
 // 仕様：Tolifo GK-S60RGB＝色温度3200〜5600K・RGB 360色・明るさ10〜100%・NP-F970×2（Tolifo公式・販売店）。iVIS mini＝microSD・MP4 24Mbps・NB-4L（キヤノン公式）。
 // GoPro HERO10 Black＝5.3K60・4K120・2.7K240・23MP・前後の画面・デジタルレンズ（検索で確認。ボタンの動きは一般的な GoPro の操作からの推定）
@@ -444,7 +456,7 @@ const deviceScreens = {};
   try { saved = JSON.parse(localStorage.getItem(DEVICE_KEY) || "{}"); } catch (error) { /* 既定の状態 */ }
   try { oldLed = JSON.parse(localStorage.getItem(LED_KEY) || "{}"); } catch (error) { /* 前のオンオフの記録なし */ }
   for (const device of DEVICE_LIST) {
-    const base = device.kind === "led" ? { power: oldLed[device.side] !== false, mode: "cct", brightness: 100, kelvin: 5600, hue: 200, battery: 100 }
+    const base = device.kind === "led" ? { power: oldLed[device.side] !== false, mode: "cct", brightness: 100, kelvin: 5600, hue: 200, yaw: 0, battery: 100 }
       : device.kind === "ivis" ? { power: false, battery: 100, memory: DEVICE_SPEC.ivis.memory }
       : { power: false, mode: "video", format: "5.3K60", lens: "広角", photos: 0, battery: 100, memory: DEVICE_SPEC.gopro.memory };
     deviceState[device.id] = Object.assign(base, saved[device.id] || {}, { recording: false, recordStart: 0, flash: 0, message: "" });
@@ -459,9 +471,15 @@ function kelvinColor(kelvin) {                             // 色温度 → 色�
   const clamp = (value) => Math.max(0, Math.min(255, value)) / 255;
   return new THREE.Color().setRGB(clamp(r), clamp(g), clamp(b), THREE.SRGBColorSpace);
 }
-function applyLed(side) {                                  // LEDの光と顔の色・明るさ、ボタンの表示
+function applyLed(side) {                                  // LEDの光と顔の色・明るさ、向き、ボタンの表示
   const state = ledState(side);
   const on = state.power && state.battery > 0;
+  const mount = ledGroups[side];                           // 向き（左右）：ポールを軸に本体ごと回す。既定（0°）は実機に合わせた角度
+  if (mount) {
+    mount.group.rotation.y = mount.baseRotationY + (state.yaw || 0) * Math.PI / 180;
+    mount.group.updateMatrixWorld(true);
+    aimLed(side);                                          // 光の位置と向きを、回したあとの本体に合わせ直す
+  }
   const color = state.mode === "rgb" ? new THREE.Color().setHSL(state.hue / 360, 1, 0.5, THREE.SRGBColorSpace) : kelvinColor(state.kelvin);
   for (const light of ledLights[side]) {
     light.color.copy(color);
@@ -487,7 +505,7 @@ function setDevice(id, patch) {
   Object.assign(deviceState[id], patch);
   const device = DEVICE_LIST.find((item) => item.id === id);
   if (device && device.kind === "led") applyLed(device.side);
-  saveDevices();
+  if (!draggingSlider) saveDevices();                      // スライダーを動かしている間は保存しない（離したときに1回）
   refreshDeviceViews(false);
 }
 function setLedSide(side, on) { setDevice("led_" + side, { power: on, message: "" }); }
@@ -975,6 +993,8 @@ function fillDeviceControls(box, id) {
     parts.push(slider("明るさ", 10, 100, 1, state.brightness, "%", (value) => setDevice(id, { brightness: value })));
     if (state.mode === "cct") parts.push(slider("色温度（3200K 暖色 〜 5600K 白色）", 3200, 5600, 100, state.kelvin, "K", (value) => setDevice(id, { kelvin: value })));
     else parts.push(slider("色（色相 0〜359°）", 0, 359, 1, state.hue, "°", (value) => setDevice(id, { hue: value })));
+    // 向き（左右）：ポールを軸にLEDごと回す。0°＝実機どおりの向き（窓枠に当たらない角度）
+    parts.push(slider("向き（左右・0°が実機どおり）", -60, 60, 1, state.yaw || 0, "°", (value) => setDevice(id, { yaw: value })));
     parts.push(row(button("バッテリーを交換（NP-F×2）", () => deviceAction(id, "battery"))));
   } else {
     const photo = device.kind === "gopro" && state.mode === "photo";
@@ -994,9 +1014,21 @@ function fillDeviceControls(box, id) {
   box.replaceChildren(...parts);
   updateDeviceStatus(box);
 }
+// スライダー。**動かしている間はこの部品を作り直さない**（作り直すと指から外れて、スマホでカクつく。TAICHI 2026-09-18）
+let draggingSlider = null;
 function slider(label, min, max, step, value, unit, onInput) {
   const shown = el("b", { textContent: value + unit });
   const input = el("input", { type: "range", min, max, step, value });
+  const hold = () => { draggingSlider = input; };
+  const release = () => {
+    if (draggingSlider !== input) return;
+    draggingSlider = null;
+    saveDevices();                                         // 動かしている間は保存しない（書き込みでカクつくため）。離したときに1回だけ
+    refreshDeviceViews(false);
+  };
+  input.addEventListener("pointerdown", hold);
+  input.addEventListener("touchstart", hold, { passive: true });
+  for (const type of ["pointerup", "pointercancel", "touchend", "touchcancel", "change", "blur"]) input.addEventListener(type, release);
   input.addEventListener("input", () => { shown.textContent = input.value + unit; onInput(Number(input.value)); });
   return el("label", { className: "deviceSlider" }, [label + "　", shown, input]);
 }
@@ -1015,7 +1047,8 @@ function updateDeviceStatus(box) {
   const load = device.kind === "led" ? Math.max(0.1, state.brightness / 100) : state.recording ? 1 : 0.5;
   const left = DEVICE_SPEC[device.kind].battery * state.battery / 100 / load;
   const lines = [];
-  if (device.kind === "led") lines.push(state.power && state.battery > 0 ? "点灯中　明るさ " + state.brightness + "%・" + (state.mode === "cct" ? state.kelvin + "K" : "RGB " + state.hue + "°") : "消灯");
+  if (device.kind === "led") lines.push((state.power && state.battery > 0 ? "点灯中　明るさ " + state.brightness + "%・" + (state.mode === "cct" ? state.kelvin + "K" : "RGB " + state.hue + "°") : "消灯")
+    + (state.yaw ? "　向き " + (state.yaw > 0 ? "+" : "") + state.yaw + "°" : ""));
   else if (!state.power) lines.push("電源オフ");
   else if (state.recording) lines.push("● 録画中 " + formatTime((performance.now() - state.recordStart) / 1000));
   else if (device.kind === "gopro") lines.push(GOPRO_MODES[state.mode] + "（" + (state.mode === "photo" ? "23MP・" + state.photos + "枚" : state.format + "・" + state.lens) + "）");
@@ -1026,7 +1059,10 @@ function updateDeviceStatus(box) {
 }
 function refreshDeviceViews(valuesOnly) {
   for (const box of document.querySelectorAll(".deviceBox")) {
-    const dragging = box.contains(document.activeElement) && document.activeElement.type === "range";
+    // 動かしている最中のスライダーがこの枠の中にあるなら、中身を作り直さない（指から外れるため）。
+    // スマホは range に触っても activeElement にならないことがあるので、pointerdown で覚えた方を先に見る
+    const dragging = (draggingSlider && box.contains(draggingSlider))
+      || (box.contains(document.activeElement) && document.activeElement.type === "range");
     if (valuesOnly || dragging) updateDeviceStatus(box);
     else fillDeviceControls(box, box.dataset.device);
   }
@@ -1553,11 +1589,12 @@ if (PUBLIC_SITE) {
 }
 
 // ── 掛け声（2分前・30秒前。TAICHI 09-17）：実際のフライト動画から切り出したスタッフの声（audio/*_real.m4a）が
-//    あればそれを、無ければ合成の声（audio/*_voice.m4a）を鳴らす ──
+//    あればそれを、無ければ合成の声（audio/*_voice.m4a）を鳴らす。
+//    公開版も実際の声にする（TAICHI 2026-09-18「実際のフライトスタッフの声にしてください。了承は取りました」＝運航会社の了承あり） ──
 let lastCallout = "";
 async function playCallout(key) {
   const sources = [["audio/callout_" + key + "_real.m4a", "実際の声"], ["audio/callout_" + key + "_voice.m4a", "合成の声"]];
-  for (const [file, kind] of PUBLIC_SITE ? sources.slice(1) : sources) {   // 公開版は合成の声だけ（TAICHI 09-17「外部版だけ合成版」）
+  for (const [file, kind] of sources) {
     try {
       const audio = new Audio(file);
       await audio.play();                                    // 無いファイル（404）は再生できずに次へ
