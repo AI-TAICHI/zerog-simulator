@@ -210,7 +210,7 @@ const view = document.getElementById("view");
 const $ = (id) => document.getElementById(id);
 // 外部に公開する版（make_public.py が <html data-site="public"> にする。TAICHI 09-17「だれでも使える」）：
 // サーバーに書き込む機能（AIへの依頼・カメラの追加と置き直し）を出さない。
-// 掛け声は2026-09-18から公開版も実際のスタッフの声（運航会社の了承をTAICHIが取った）
+// 掛け声は2026-09-18から、ふだんのアプリも公開版も実際のスタッフの声だけ（運航会社の了承をTAICHIが取った）
 const PUBLIC_SITE = document.documentElement.dataset.site === "public";
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.03, 80);
@@ -1588,12 +1588,12 @@ if (PUBLIC_SITE) {
   loadRequests();
 }
 
-// ── 掛け声（2分前・30秒前。TAICHI 09-17）：実際のフライト動画から切り出したスタッフの声（audio/*_real.m4a）が
-//    あればそれを、無ければ合成の声（audio/*_voice.m4a）を鳴らす。
-//    公開版も実際の声にする（TAICHI 2026-09-18「実際のフライトスタッフの声にしてください。了承は取りました」＝運航会社の了承あり） ──
+// ── 掛け声（2分前・30秒前。TAICHI 09-17）：実際のフライト動画から切り出したスタッフの声（audio/*_real.m4a）を鳴らす。
+//    公開版も同じ（TAICHI 2026-09-18「実際のフライトスタッフの声にしてください。了承は取りました」＝運航会社の了承あり）。
+//    合成の声は使わなくなったので消した（同 2026-09-18） ──
 let lastCallout = "";
 async function playCallout(key) {
-  const sources = [["audio/callout_" + key + "_real.m4a", "実際の声"], ["audio/callout_" + key + "_voice.m4a", "合成の声"]];
+  const sources = [["audio/callout_" + key + "_real.m4a", "実際の声"]];
   for (const [file, kind] of sources) {
     try {
       const audio = new Audio(file);
