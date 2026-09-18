@@ -31,7 +31,12 @@
   .tipHead { margin-top:6px; color:#ffd58a; font-weight:700; }
   .tip ul { margin:3px 0 0; padding-left:16px; }
   .tip::after { content:""; position:absolute; left:var(--arrow, 50%); bottom:-7px; margin-left:-7px; border:7px solid transparent; border-bottom:0; border-top-color:rgba(16,34,57,.96); }
-  #panelShow { position:fixed; top:12px; left:12px; z-index:10; display:none; }
+  /* 設定を出す3本線のボタン（TAICHI 2026-09-18「3本線のメニューマークに。最初は非表示」）。位置は右上 */
+  #panelShow { position:fixed; top:max(12px, env(safe-area-inset-top)); right:12px; z-index:45; display:none;
+               width:46px; height:46px; padding:0; border:1px solid var(--line); border-radius:12px;
+               background:rgba(255,255,255,.94); box-shadow:0 6px 20px rgba(8,12,20,.35); cursor:pointer; }
+  #panelShow span { display:block; width:20px; height:2px; margin:4px auto; border-radius:2px; background:var(--navy); }
+  #panelShow:hover { background:#fff; }
   /* 機器の操作（TAICHI 09-17） */
   #devicesPanel { margin-top:8px; border-top:1px solid var(--line); padding-top:6px; }
   #devicesPanel summary { cursor:pointer; font-weight:700; color:var(--navy); }
@@ -61,7 +66,7 @@
   #seatpick { position:fixed; top:12px; right:12px; padding:10px 12px; font-size:11px; }
   #seatpick label { display:block; margin-bottom:6px; color:var(--muted); }
   #seatpick select { font:inherit; font-size:11px; padding:5px 7px; border:1px solid var(--line); border-radius:6px; max-width:100%; }   /* 視点の名前が長くてもパネルの幅に収める（はみ出すと横のスクロールが出た） */
-  #loading { position:fixed; inset:0; display:grid; place-items:center; font-size:13px; color:#cfd6e0; background:#0e1116; }
+  #loading { position:fixed; inset:0; z-index:50; display:grid; place-items:center; font-size:13px; color:#cfd6e0; background:#0e1116; }
   #seatpick { width:260px; max-height:calc(100vh - 140px); overflow-y:auto; }   /* 下の段階のパネルと重ならないよう、はみ出す分はスクロール */
   #seatpick input[type=range] { width:100%; margin:2px 0 0; }
   .hint { font-size:10px; line-height:1.55; color:var(--muted); margin:6px 0 0; }
@@ -112,13 +117,13 @@
   body.narrow #sheet #seatpick select, body.narrow #sheet #seatpick input[type=range] { min-height:40px; font-size:13px; }
   body.narrow #sheet #seatpick .mini, body.narrow #sheet .deviceRow .mini { min-height:38px; font-size:11px; }
   body.narrow #sheet .mounts input { width:20px; height:20px; }   /* GoProの置き場所のボタンは指で押せる大きさに */
-  body.narrow #panelShow { top:max(10px, env(safe-area-inset-top)); left:10px; padding:11px 15px; font-size:13px; z-index:41; }
+  body.narrow #panelShow { top:max(10px, env(safe-area-inset-top)); right:10px; width:48px; height:48px; }
   body.narrow .tip { max-width:min(320px, calc(100vw - 20px)); }
   body.narrow .tip.pop { max-width:calc(100vw - 20px); }
   body.panelsHidden #sheet { display:none; }
 </style>
 </head>
-<body>
+<body class="panelsHidden">   <!-- 最初は閉じておく（TAICHI 2026-09-18）。3本線のボタンで開く -->
 <div id="view"></div>
 <div id="loading">3Dモデルを読み込んでいます…</div>
 
@@ -170,7 +175,7 @@
   ゲームパッドとVRのスティックにも対応（左で移動・右で向きを変える）。VRでは右の A ボタンで撮影カメラの視点を順に切り替える（ヘッドセットではまだ試していない）</p>
 </div>
 
-<button id="panelShow" class="action ghost" title="操作パネルを出す（キーボードの H でも）">☰ パネルを出す</button>
+<button id="panelShow" title="設定・操作パネルを出す（キーボードの H でも）" aria-label="設定・操作パネルを出す"><span></span><span></span><span></span></button>
 <div id="cameraTip" class="tip" hidden></div>
 <div id="devicePop" class="tip pop" hidden></div>
 
@@ -647,11 +652,9 @@ for (const side of ["Port", "Starboard"]) {
   applyLed(side);
 }
 
-// 操作パネルの表示／非表示（TAICHI 09-17「常に表示されていると邪魔」）。「パネルを隠す」「☰ パネルを出す」か H キー。このブラウザに覚えさせる
-const PANEL_KEY = "zerog_sim.panelsHidden";
+// 操作パネルの表示／非表示（TAICHI 09-17「常に表示されていると邪魔」）。右上の3本線か「パネルを隠す」、H キー
 function setPanels(hidden) {
   document.body.classList.toggle("panelsHidden", hidden);
-  try { localStorage.setItem(PANEL_KEY, hidden ? "1" : "0"); } catch (error) { /* 次回は表示 */ }
 }
 $("panelHide").addEventListener("click", () => setPanels(true));
 $("panelShow").addEventListener("click", () => setPanels(false));
@@ -678,12 +681,9 @@ function applyLayout() {
 narrow.addEventListener("change", applyLayout);
 applyLayout();
 
-let panelsStartHidden = narrow.matches;   // 画面が狭いときは、最初は閉じておく（開くと3Dが見えなくなるため）
-try {
-  const saved = localStorage.getItem(PANEL_KEY);
-  if (saved !== null) panelsStartHidden = saved === "1";
-} catch (error) { /* 覚えられない環境では、画面の幅で決める */ }
-setPanels(panelsStartHidden);
+// 最初はいつも閉じておく（TAICHI 2026-09-18「デフォルトはメニューは非表示で、3本線を押したら設定ウィンドウが表示される」）。
+// パソコンでも同じ。前に開いていたかどうかは覚えない（覚えると、この決まりのとおりに開かない画面が出る）
+try { localStorage.removeItem("zerog_sim.panelsHidden"); } catch (error) { /* 消せなくても動く */ }
 
 // 視点は dimensions.json の viewpoints（実測の座席位置から計算したもの）
 // 視点：座る・浮く位置（dimensions.json の viewpoints）と、撮影カメラ（cameras。アプリで追加・置き直しができる）
