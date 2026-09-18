@@ -184,6 +184,7 @@
   <button class="action ghost" id="vr">VRで見る</button>
   <button class="action ghost" id="call2">📣 2分前</button>
   <button class="action ghost" id="call30">📣 30秒前</button>
+  <button class="action ghost" id="callEnd" title="無重力が終わるときのブザー（ピピピ…）と「はい、終わりまーす」の掛け声（実際のフライトの音）">📣 無重力終わり</button>
   <span id="callNote" class="hint" style="margin:0"></span>
   <div id="note"></div>
 </div>
@@ -1590,7 +1591,8 @@ if (PUBLIC_SITE) {
 
 // ── 掛け声（2分前・30秒前。TAICHI 09-17）：実際のフライト動画から切り出したスタッフの声（audio/*_real.m4a）を鳴らす。
 //    公開版も同じ（TAICHI 2026-09-18「実際のフライトスタッフの声にしてください。了承は取りました」＝運航会社の了承あり）。
-//    合成の声は使わなくなったので消した（同 2026-09-18） ──
+//    合成の声は使わなくなったので消した（同 2026-09-18）。
+//    無重力の終わり（TAICHI 2026-09-19）：ブザー（ピピピ…）と「はい、終わりまーす」を、実際のフライト動画から1つの音で（audio/callout_end_real.m4a） ──
 let lastCallout = "";
 async function playCallout(key) {
   const sources = [["audio/callout_" + key + "_real.m4a", "実際の声"]];
@@ -1607,6 +1609,7 @@ async function playCallout(key) {
 }
 $("call2").addEventListener("click", () => playCallout("2min"));
 $("call30").addEventListener("click", () => playCallout("30s"));
+$("callEnd").addEventListener("click", () => playCallout("end"));
 
 // 動作確認用（数字で確かめるため）
 window.zerogDebug = { camera, controls, moveBy, applySpeed, rig, applyView, setPhase, belts, setLed, ledLights, setLedSide, get led() { return { Port: ledState("Port").power, Starboard: ledState("Starboard").power }; }, deviceState, setDevice, deviceAction, openDevicePop, renderer, scene, cameraUnder, showCameraTip,   // renderer・scene：画面が隠れていても1枚描いて確かめる
