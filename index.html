@@ -382,7 +382,7 @@ for (const file of data.files.map((f) => f.file.replace(/\.obj$/, "")).filter((f
 // 配置JSONのとおりに複製して置く（位置はモデルに焼き込まない＝Unityと同じ考え方）
 const extraSeatCopies = [];   // 「座席4脚」構成でだけ見せる追加の座席（元のモデルは変えない）
 let seats4 = false;
-const ledRigs = {};   // LEDを斜めの管へ付け替えるための台（Port／Starboard）
+const ledRigs = {}, ledArms = {};   // LEDを斜めの管へ付け替えるための台（Port／Starboard）
 for (const item of data.placement) {
   const source = prefabs[item.prefab];
   if (!source) continue;
@@ -834,6 +834,16 @@ document.getElementById("configToggle").addEventListener("click", () => {
       ledRigs[side] = pivot;
     }
     const pivot = ledRigs[side];
+    if (!ledArms[side] && spec.tube_point) {   // 管からLEDの台までをつなぐ棒（クランプのアーム）
+      const from = new THREE.Vector3(...spec.tube_point), to = new THREE.Vector3(...spec.pivot_to);
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, from.distanceTo(to), 10), M.dark || new THREE.MeshStandardMaterial({ color: 0x1d2025 }));
+      arm.position.copy(from).add(to).multiplyScalar(0.5);
+      arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+      arm.name = "LEDArm_" + side;
+      root.add(arm);
+      ledArms[side] = arm;
+    }
+    if (ledArms[side]) ledArms[side].visible = seats4;
     if (seats4) {
       pivot.position.set(...spec.pivot_to);
       pivot.rotation.set(spec.tilt_deg * Math.PI / 180, spec.yaw_deg * Math.PI / 180, 0);
