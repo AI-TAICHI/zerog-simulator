@@ -382,6 +382,7 @@ for (const file of data.files.map((f) => f.file.replace(/\.obj$/, "")).filter((f
 // 配置JSONのとおりに複製して置く（位置はモデルに焼き込まない＝Unityと同じ考え方）
 const extraSeatCopies = [];   // 「座席4脚」構成でだけ見せる追加の座席（元のモデルは変えない）
 let seats4 = false;
+let mountsBefore4 = null;   // 座席4脚にする前のGoProの場所
 const ledRigs = {}, ledArms = {};   // LEDを斜めの管へ付け替えるための台（Port／Starboard）
 for (const item of data.placement) {
   const source = prefabs[item.prefab];
@@ -853,6 +854,24 @@ document.getElementById("configToggle").addEventListener("click", () => {
     }
     pivot.updateMatrixWorld(true);
     aimLed(side);
+  }
+  // 座席4脚のときは、左のLED上のGoProを左窓へ移す（TAICHI 2026-11-11）。標準に戻すと元の場所。このブラウザの記憶（localStorage）は書き換えない
+  if (seats4) {
+    mountsBefore4 = Object.assign({}, mountOf);
+    const onLed = GOPROS.find((camera) => mountOf[camera.id] === "led_left");
+    if (onLed && !GOPROS.some((other) => other.id !== onLed.id && mountOf[other.id] === "window_left")) mountOf[onLed.id] = "window_left";
+  } else if (mountsBefore4) {
+    Object.assign(mountOf, mountsBefore4);
+    mountsBefore4 = null;
+  }
+  {
+    const current = seatSelect.value;
+    cameraList = mergeCameras();
+    rebuildViewOptions(current);
+    rebuildCameraModels();
+    if (current.startsWith("cam:")) applyView(current);
+    else updateCameraButtons();
+    renderMounts();
   }
   document.getElementById("configToggle").textContent = seats4
     ? "🪑 構成：座席4脚（後ろ向き2脚を追加・LEDを斜めの管へ ○推定）→ 標準に戻す"
