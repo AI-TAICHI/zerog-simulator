@@ -371,7 +371,7 @@ function dress(object) {
 const root = new THREE.Group();
 scene.add(root);
 
-const data = await fetch("dimensions.json").then((r) => r.json());
+const data = await fetch("dimensions.json", { cache: "no-cache" }).then((r) => r.json());
 const shell = dress(await load("cabin_shell.obj"));
 root.add(shell);
 
