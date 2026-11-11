@@ -132,6 +132,7 @@
   <p>三菱MU-300のフリーエリアを、公式サイト「実機サイズ表」の<b>実測値</b>で作った試作です（寸法76項目のうち、実測・写真で確かめた値58）。
   壁・床・座席・窓の見た目には<b>実物の写真から切り出した素材</b>を使っています。
   <b>加速度・無重力・振動・騒音は再現しません。</b>座席の高さだけ、まだ推定です。</p>
+  <button class="action" id="configToggle">🪑 構成：標準（後部座席2脚）→ 座席4脚に切り替え</button>
   <button class="action" id="askOpen">💬 AIへの依頼<span id="askCount"></span></button>
   <button class="mini" id="panelHide" title="操作パネルをぜんぶ隠す（キーボードの H でも）">パネルを隠す</button>
 </div>
@@ -379,6 +380,9 @@ for (const file of data.files.map((f) => f.file.replace(/\.obj$/, "")).filter((f
   prefabs[file] = dress(await load(file + ".obj"));
 }
 // 配置JSONのとおりに複製して置く（位置はモデルに焼き込まない＝Unityと同じ考え方）
+const extraSeatCopies = [];   // 「座席4脚」構成でだけ見せる追加の座席（元のモデルは変えない）
+let seats4 = false;
+const ledRigs = {};   // LEDを斜めの管へ付け替えるための台（Port／Starboard）
 for (const item of data.placement) {
   const source = prefabs[item.prefab];
   if (!source) continue;
@@ -387,6 +391,7 @@ for (const item of data.placement) {
   copy.rotation.y = (item.rotation_y || 0) * Math.PI / 180;
   copy.name = item.name;
   copy.visible = item.visible !== false;
+  if (item.config === "seats4") { copy.visible = false; extraSeatCopies.push(copy); }   // 追加の座席：標準構成では隠す
   root.add(copy);
 }
 
@@ -732,7 +737,7 @@ function mergeCameras() {
 function rebuildViewOptions(selected) {
   const seats = document.createElement("optgroup");
   seats.label = "座る・浮く・外から";
-  for (const [key, view] of Object.entries(VIEWS)) seats.append(new Option(view.label, key));
+  for (const [key, view] of Object.entries(VIEWS)) { if (key.startsWith("rf_") && !seats4) continue; seats.append(new Option(view.label, key)); }
   const cams = document.createElement("optgroup");
   cams.label = "撮影カメラ";
   for (const item of cameraList) {
@@ -784,7 +789,7 @@ function applyView(name) {
   const v = isCamera ? cameraList.find((item) => "cam:" + item.id === name) : VIEWS[name];
   if (!v) return;
   if (seatSelect.value !== name) seatSelect.value = name;   // 画面の選択と合わせる
-  shell.traverse((child) => { if (child.isMesh && NEAR_SIDE.test(child.name)) child.visible = name !== "outside"; });
+  shell.traverse((child) => { if (child.isMesh && NEAR_SIDE.test(child.name)) child.visible = name !== "outside" && name !== "rf_view"; });
   cameraModels.children.forEach((model) => { model.visible = !(isCamera && model.name === "CameraModel_" + v.id); });
   camera.fov = isCamera ? cameraFov(v) : 60;             // 撮影カメラはその画角で見る（GoPro はデジタルレンズの設定で変わる）
   camera.updateProjectionMatrix();
@@ -807,6 +812,45 @@ function moveRigTo(view) {                                 // 左右の向きを
   rig.position.add(new THREE.Vector3(...view.position).sub(head));
 }
 seatSelect.addEventListener("change", (event) => applyView(event.target.value));
+document.getElementById("configToggle").addEventListener("click", () => {
+  seats4 = !seats4;
+  for (const copy of extraSeatCopies) copy.visible = seats4;
+  // 座席4脚のときは、LEDを前のポールの上の斜めの管に付け替える（TAICHI 2026-11-11。○推定）。本体・ヨーク・クランプを1つの剛体として動かす
+  for (const side of ["Port", "Starboard"]) {
+    const spec = data.led_slope_mount && data.led_slope_mount[side];
+    if (!spec) continue;
+    if (!ledRigs[side]) {
+      const pivot = new THREE.Group();
+      pivot.name = "LEDRig_" + side;
+      pivot.position.set(...spec.pivot_from);
+      root.add(pivot);
+      pivot.updateMatrixWorld(true);
+      const members = [];
+      root.traverse((child) => {
+        if (child.parent === pivot) return;
+        if (child.name === "LED_" + side || (child.isMesh && child.name.startsWith("LED_Yoke") && child.name.endsWith("_" + side))) members.push(child);
+      });
+      for (const member of members) pivot.attach(member);   // いまの見た目のまま、台の子にする
+      ledRigs[side] = pivot;
+    }
+    const pivot = ledRigs[side];
+    if (seats4) {
+      pivot.position.set(...spec.pivot_to);
+      pivot.rotation.set(spec.tilt_deg * Math.PI / 180, spec.yaw_deg * Math.PI / 180, 0);
+    } else {
+      pivot.position.set(...spec.pivot_from);
+      pivot.rotation.set(0, 0, 0);
+    }
+    pivot.updateMatrixWorld(true);
+    aimLed(side);
+  }
+  document.getElementById("configToggle").textContent = seats4
+    ? "🪑 構成：座席4脚（後ろ向き2脚を追加・LEDを斜めの管へ ○推定）→ 標準に戻す"
+    : "🪑 構成：標準（後部座席2脚）→ 座席4脚に切り替え";
+  const current = seatSelect.value;
+  rebuildViewOptions(current.startsWith("rf_") && !seats4 ? Object.keys(VIEWS)[0] : current);
+  if (current.startsWith("rf_") && !seats4) applyView(Object.keys(VIEWS)[0]);
+});
 await loadUserCameras(Object.keys(VIEWS)[0]);
 applyView(Object.keys(VIEWS)[0]);
 
@@ -1423,7 +1467,20 @@ renderer.domElement.addEventListener("touchmove", (event) => {
 const clearFingers = (event) => { if (event.touches.length < 2) fingers = null; };
 renderer.domElement.addEventListener("touchend", clearFingers);
 renderer.domElement.addEventListener("touchcancel", clearFingers);
-addEventListener("gesturestart", (event) => event.preventDefault());    // iPhone・iPadのSafariのページ拡大を止める
+// macOS の Safari は、トラックパッドのピンチを wheel ではなく gesture の出来事で知らせる。
+// gesturestart を止めるだけだと**ピンチが何も起きない**ので、ここで前後に使う
+// （TAICHI 2026-09-22。VirginVR で同じ抜けを直したときに見つかった。Chrome・Edge・Firefox は
+//  ctrlKey つきの wheel で来るので、上の wheel の処理が受ける）
+let gestureScale = 1;
+addEventListener("gesturestart", (event) => { event.preventDefault(); gestureScale = event.scale || 1; });
+addEventListener("gesturechange", (event) => {
+  event.preventDefault();
+  const scale = event.scale || 1;
+  const step = Math.max(-0.6, Math.min(0.6, (scale - gestureScale) * 3.0 * speed));
+  gestureScale = scale;
+  if (step) moveBy(step, 0, 0);                            // 広げると前へ
+}, { passive: false });
+addEventListener("gestureend", (event) => { event.preventDefault(); gestureScale = 1; }, { passive: false });
 
 const keys = new Set();
 addEventListener("keydown", (event) => {

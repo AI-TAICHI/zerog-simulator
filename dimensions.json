@@ -68,6 +68,28 @@
    "rotation_y": 0
   },
   {
+   "prefab": "seat",
+   "name": "RearFacingSeat_Starboard",
+   "position": [
+    0.424,
+    0.014,
+    -0.395
+   ],
+   "rotation_y": 180,
+   "config": "seats4"
+  },
+  {
+   "prefab": "seat",
+   "name": "RearFacingSeat_Port",
+   "position": [
+    0.424,
+    0.014,
+    0.395
+   ],
+   "rotation_y": 180,
+   "config": "seats4"
+  },
+  {
    "prefab": "bench_seat",
    "name": "BenchSeat",
    "position": [
@@ -174,6 +196,45 @@
     -0.116,
     0.85,
     -0.12
+   ]
+  },
+  "rf_port": {
+   "label": "後ろ向き座席（左・追加○推定）",
+   "position": [
+    0.354,
+    1.15,
+    0.395
+   ],
+   "target": [
+    2.096,
+    0.85,
+    0.12
+   ]
+  },
+  "rf_starboard": {
+   "label": "後ろ向き座席（右・追加○推定）",
+   "position": [
+    0.354,
+    1.15,
+    -0.395
+   ],
+   "target": [
+    2.096,
+    0.85,
+    -0.12
+   ]
+  },
+  "rf_view": {
+   "label": "座席4脚を見渡す（左の外から・断面・追加○推定）",
+   "position": [
+    0.1,
+    1.8,
+    2.4
+   ],
+   "target": [
+    1.085,
+    0.6,
+    0.0
    ]
   },
   "bench": {
@@ -406,6 +467,36 @@
     "明るさの調整だけでなく、白色・暖色の調整などもできます",
     "離陸と着陸時は取り外して床に置いておき、シートベルトを外してよくなったら取り付けてください"
    ]
+  }
+ },
+ "led_slope_mount": {
+  "Starboard": {
+   "pivot_from": [
+    -0.058,
+    0.661,
+    -0.575
+   ],
+   "pivot_to": [
+    -0.034,
+    1.229,
+    -0.34
+   ],
+   "tilt_deg": 62,
+   "yaw_deg": 76
+  },
+  "Port": {
+   "pivot_from": [
+    0.058,
+    0.661,
+    0.575
+   ],
+   "pivot_to": [
+    0.034,
+    1.229,
+    0.34
+   ],
+   "tilt_deg": -62,
+   "yaw_deg": -76
   }
  }
 }
